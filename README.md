@@ -23,50 +23,32 @@ Skills in Claude Code are automatically loaded from specific directories. Choose
 
 #### Option A: Personal Skill (available across all projects)
 
-1. **Clone directly into your personal skills folder**:
-   ```bash
-   git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
-   ```
+```bash
+git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
+cd ~/.claude/skills/vlmrun-cli-skill
+uv pip install "vlmrun[cli]"
 
-2. **Set up the environment**:
-   ```bash
-   cd ~/.claude/skills/vlmrun-cli-skill
-   uv venv
-   source .venv/bin/activate
-   uv pip install "vlmrun[cli]"
-   ```
-
-3. **Configure your API key** by creating a `.env` file:
-   ```bash
-   cat <<EOF > .env
-   VLMRUN_API_KEY="your-api-key"
-   VLMRUN_BASE_URL="https://agent.vlm.run/v1"
-   EOF
-   ```
+# Configure your API key
+cat <<EOF > .env
+VLMRUN_API_KEY="your-api-key"
+VLMRUN_BASE_URL="https://agent.vlm.run/v1"
+EOF
+```
 
 #### Option B: Project Skill (available to anyone working in a specific repository)
 
-1. **Clone into your project's skills folder**:
-   ```bash
-   cd /path/to/your/project
-   git clone https://github.com/vlm-run/vlmrun-cli-skill.git .claude/skills/vlmrun-cli-skill
-   ```
+```bash
+cd /path/to/your/project
+git clone https://github.com/vlm-run/vlmrun-cli-skill.git .claude/skills/vlmrun-cli-skill
+cd .claude/skills/vlmrun-cli-skill
+uv pip install "vlmrun[cli]"
 
-2. **Set up the environment**:
-   ```bash
-   cd .claude/skills/vlmrun-cli-skill
-   uv venv
-   source .venv/bin/activate
-   uv pip install "vlmrun[cli]"
-   ```
-
-3. **Configure your API key** by creating a `.env` file:
-   ```bash
-   cat <<EOF > .env
-   VLMRUN_API_KEY="your-api-key"
-   VLMRUN_BASE_URL="https://agent.vlm.run/v1"
-   EOF
-   ```
+# Configure your API key
+cat <<EOF > .env
+VLMRUN_API_KEY="your-api-key"
+VLMRUN_BASE_URL="https://agent.vlm.run/v1"
+EOF
+```
 
 #### Verify Installation
 
@@ -79,28 +61,19 @@ What skills are available?
 
 Claude Desktop also uses the `~/.claude/skills/` directory for personal skills.
 
-1. **Clone directly into your personal skills folder**:
-   ```bash
-   git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
-   ```
+```bash
+git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
+cd ~/.claude/skills/vlmrun-cli-skill
+uv pip install "vlmrun[cli]"
 
-2. **Set up the environment**:
-   ```bash
-   cd ~/.claude/skills/vlmrun-cli-skill
-   uv venv
-   source .venv/bin/activate
-   uv pip install "vlmrun[cli]"
-   ```
+# Configure your API key
+cat <<EOF > .env
+VLMRUN_API_KEY="your-api-key"
+VLMRUN_BASE_URL="https://agent.vlm.run/v1"
+EOF
+```
 
-3. **Configure your API key** by creating a `.env` file:
-   ```bash
-   cat <<EOF > .env
-   VLMRUN_API_KEY="your-api-key"
-   VLMRUN_BASE_URL="https://agent.vlm.run/v1"
-   EOF
-   ```
-
-4. **Restart Claude Desktop** to load the new skill.
+Restart Claude Desktop to load the new skill.
 
 ## Usage
 
