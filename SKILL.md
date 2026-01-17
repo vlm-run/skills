@@ -17,7 +17,7 @@ uv pip install "vlmrun[cli]"
 ## Command
 
 ```bash
-vlmrun chat "prompt" -i input.jpg [options]
+vlmrun chat "<prompt>" -i input.jpg [options]
 ```
 
 ## Options
@@ -89,6 +89,6 @@ echo "Describe this image in detail" | vlmrun chat - -i photo.jpg
 
 ## Notes
 
-- Use `-o ./directory` to save generated artifacts (images, videos) relative to your current working directory
+- Use `-o ./<directory>` to save generated artifacts (images, videos) relative to your current working directory
 - Without `-o`, artifacts save to `~/.vlmrun/cache/artifacts/<session_id>/`
 - Multiple input files upload concurrently
