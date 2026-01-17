@@ -19,8 +19,8 @@ A Claude skill for interacting with VLM Run's Orion visual AI agent via CLI. Pro
 - Image understanding, analysis, and generation
 - Video summarization, transcription, and generation
 - Document extraction (PDF, invoices, contracts)
-- Object detection and OCR
-- Multi-file comparison
+- Object detection, image segmentation, OCR and more
+- Compare images (visual diff)
 
 ## Installation
 
