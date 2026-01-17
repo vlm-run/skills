@@ -26,13 +26,9 @@ Skills in Claude Code are automatically loaded from specific directories. Choose
 ```bash
 git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
 cd ~/.claude/skills/vlmrun-cli-skill
+uv venv && source .venv/bin/activate
 uv pip install "vlmrun[cli]"
-
-# Configure your API key
-cat <<EOF > .env
-VLMRUN_API_KEY="your-api-key"
-VLMRUN_BASE_URL="https://agent.vlm.run/v1"
-EOF
+cp .env.template .env  # Then edit .env with your API key
 ```
 
 #### Option B: Project Skill (available to anyone working in a specific repository)
@@ -41,13 +37,9 @@ EOF
 cd /path/to/your/project
 git clone https://github.com/vlm-run/vlmrun-cli-skill.git .claude/skills/vlmrun-cli-skill
 cd .claude/skills/vlmrun-cli-skill
+uv venv && source .venv/bin/activate
 uv pip install "vlmrun[cli]"
-
-# Configure your API key
-cat <<EOF > .env
-VLMRUN_API_KEY="your-api-key"
-VLMRUN_BASE_URL="https://agent.vlm.run/v1"
-EOF
+cp .env.template .env  # Then edit .env with your API key
 ```
 
 #### Verify Installation
@@ -64,13 +56,9 @@ Claude Desktop also uses the `~/.claude/skills/` directory for personal skills.
 ```bash
 git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
 cd ~/.claude/skills/vlmrun-cli-skill
+uv venv && source .venv/bin/activate
 uv pip install "vlmrun[cli]"
-
-# Configure your API key
-cat <<EOF > .env
-VLMRUN_API_KEY="your-api-key"
-VLMRUN_BASE_URL="https://agent.vlm.run/v1"
-EOF
+cp .env.template .env  # Then edit .env with your API key
 ```
 
 Restart Claude Desktop to load the new skill.
