@@ -19,72 +19,88 @@ A Claude skill for interacting with VLM Run's Orion visual AI agent via CLI. Pro
 
 ### Installing in Claude Code (CLI)
 
-1. **Clone this repository** to your local machine:
+Skills in Claude Code are automatically loaded from specific directories. Choose one of the following options:
+
+#### Option A: Personal Skill (available across all projects)
+
+1. **Clone directly into your personal skills folder**:
    ```bash
-   git clone https://github.com/vlm-run/vlmrun-cli-skill.git
+   git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
    ```
 
-2. **Add the skill** using Claude Code's `/install-skill` command:
+2. **Set up the environment**:
    ```bash
-   claude
-   > /install-skill /path/to/vlmrun-cli-skill
-   ```
-
-   Or manually add to your Claude Code settings (`~/.claude/settings.json`):
-   ```json
-   {
-     "skills": [
-       "/path/to/vlmrun-cli-skill"
-     ]
-   }
-   ```
-
-3. **Set up the environment** (Claude will do this automatically when the skill triggers, or run manually):
-   ```bash
-   cd /path/to/vlmrun-cli-skill
+   cd ~/.claude/skills/vlmrun-cli-skill
    uv venv
    source .venv/bin/activate
    uv pip install "vlmrun[cli]"
    ```
 
-4. **Configure your API key** by creating a `.env` file:
+3. **Configure your API key** by creating a `.env` file:
    ```bash
    cat <<EOF > .env
    VLMRUN_API_KEY="your-api-key"
    VLMRUN_BASE_URL="https://agent.vlm.run/v1"
    EOF
    ```
+
+#### Option B: Project Skill (available to anyone working in a specific repository)
+
+1. **Clone into your project's skills folder**:
+   ```bash
+   cd /path/to/your/project
+   git clone https://github.com/vlm-run/vlmrun-cli-skill.git .claude/skills/vlmrun-cli-skill
+   ```
+
+2. **Set up the environment**:
+   ```bash
+   cd .claude/skills/vlmrun-cli-skill
+   uv venv
+   source .venv/bin/activate
+   uv pip install "vlmrun[cli]"
+   ```
+
+3. **Configure your API key** by creating a `.env` file:
+   ```bash
+   cat <<EOF > .env
+   VLMRUN_API_KEY="your-api-key"
+   VLMRUN_BASE_URL="https://agent.vlm.run/v1"
+   EOF
+   ```
+
+#### Verify Installation
+
+Once installed, verify the skill is loaded by asking Claude:
+```
+What skills are available?
+```
 
 ### Installing in Claude for Desktop
 
-1. **Clone this repository** to your local machine:
+Claude Desktop also uses the `~/.claude/skills/` directory for personal skills.
+
+1. **Clone directly into your personal skills folder**:
    ```bash
-   git clone https://github.com/vlm-run/vlmrun-cli-skill.git
+   git clone https://github.com/vlm-run/vlmrun-cli-skill.git ~/.claude/skills/vlmrun-cli-skill
    ```
 
-2. **Open Claude Desktop settings**:
-   - macOS: `Claude` menu → `Settings` → `Skills`
-   - Windows: `File` menu → `Settings` → `Skills`
-
-3. **Add the skill path**:
-   - Click "Add Skill"
-   - Browse to and select the cloned `vlmrun-cli-skill` directory
-
-4. **Set up the environment** in the skill directory:
+2. **Set up the environment**:
    ```bash
-   cd /path/to/vlmrun-cli-skill
+   cd ~/.claude/skills/vlmrun-cli-skill
    uv venv
    source .venv/bin/activate
    uv pip install "vlmrun[cli]"
    ```
 
-5. **Configure your API key** by creating a `.env` file in the skill directory:
+3. **Configure your API key** by creating a `.env` file:
    ```bash
    cat <<EOF > .env
    VLMRUN_API_KEY="your-api-key"
    VLMRUN_BASE_URL="https://agent.vlm.run/v1"
    EOF
    ```
+
+4. **Restart Claude Desktop** to load the new skill.
 
 ## Usage
 
