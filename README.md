@@ -31,7 +31,7 @@ A Claude skill for interacting with VLM Run's Orion visual AI agent via CLI. Pro
 
 ### Installing in Claude Code (CLI)
 
-Skills in Claude Code are automatically loaded from `~/.claude/skills/` directory. Simply move the SKILL.md file and the assets directory to a new `~/.claude/skills/vlmrun-cli-skill` directory.
+Skills in Claude Code are automatically loaded from `~/.claude/skills/` directory. Simply move the SKILL.md file to a new `~/.claude/skills/vlmrun-cli-skill` directory and Claude Code should pick it up. 
 
 #### Update the .env file
 
