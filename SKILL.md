@@ -51,8 +51,8 @@ vlmrun chat "Compare these two images and describe the differences" -i before.jp
 
 ### Image Generation
 ```bash
-vlmrun chat "Generate a photorealistic image of a cozy cabin in a snowy forest at sunset"
-vlmrun chat "Remove the background from this product image and make it transparent" -i product.jpg
+vlmrun chat "Generate a photorealistic image of a cozy cabin in a snowy forest at sunset" -o ./generated
+vlmrun chat "Remove the background from this product image and make it transparent" -i product.jpg -o ./output
 ```
 
 ### Video
@@ -64,8 +64,8 @@ vlmrun chat "Transcribe this lecture with timestamps for each section" -i lectur
 
 ### Video Generation
 ```bash
-vlmrun chat "Generate a 5-second video of ocean waves crashing on a rocky beach at golden hour"
-vlmrun chat "Create a smooth slow-motion video from this image" -i ocean.jpg
+vlmrun chat "Generate a 5-second video of ocean waves crashing on a rocky beach at golden hour" -o ./videos
+vlmrun chat "Create a smooth slow-motion video from this image" -i ocean.jpg -o ./output
 ```
 
 ### Documents
@@ -96,5 +96,6 @@ echo "Describe this image in detail" | vlmrun chat - -i photo.jpg
 
 ## Notes
 
-- Artifacts saved to `~/.vlmrun/cache/artifacts/<session_id>/`
+- Use `-o ./directory` to save generated artifacts (images, videos) relative to your current working directory
+- Without `-o`, artifacts save to `~/.vlmrun/cache/artifacts/<session_id>/`
 - Multiple input files upload concurrently
