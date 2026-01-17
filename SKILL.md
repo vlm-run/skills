@@ -12,7 +12,6 @@ Chat with VLM Run's Orion visual AI agent via CLI.
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install "vlmrun[cli]"
-cp .env.template .env  # Then edit .env with your API key
 ```
 
 ## Command
