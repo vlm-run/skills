@@ -8,11 +8,20 @@ description: "Use the VLM Run CLI (`vlmrun`) to interact with Orion visual AI ag
 Chat with VLM Run's Orion visual AI agent via CLI.
 
 ## Setup
-
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install "vlmrun[cli]"
 ```
+
+## Environment Variables
+
+You must load the following variables in your environment so that the CLI can use them. You may load the [./env](./env) file to your environment.
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `VLMRUN_API_KEY` | Required | Your VLM Run API key (required) |
+| `VLMRUN_BASE_URL` | Optional | Base URL (default: `https://agent.vlm.run/v1`) |
+| `VLMRUN_CACHE_DIR` | Optional | Cache directory (default: `~/.vlmrun/cache/artifacts/`) |
 
 ## Command
 
@@ -28,6 +37,7 @@ vlmrun chat "<prompt>" -i input.jpg [options]
 | `-i, --input` | Input file(s) - images, videos, docs (repeatable) |
 | `-o, --output` | Artifact directory (default: `~/.vlmrun/cache/artifacts/`) |
 | `-m, --model` | `vlmrun-orion-1:fast`, `vlmrun-orion-1:auto` (default), `vlmrun-orion-1:pro` |
+| `-s, --session` | Optional session ID to continue a previous session |
 | `-j, --json` | Raw JSON output |
 | `-ns, --no-stream` | Disable streaming |
 | `-nd, --no-download` | Skip artifact download |
@@ -79,13 +89,22 @@ vlmrun chat -p long_prompt.txt -i photo.jpg
 echo "Describe this image in detail" | vlmrun chat - -i photo.jpg
 ```
 
-## Environment Variables
+### Continuing a previous session
+If you want to keep the past conversation and generated artifacts in context, you can use the `-s` flag to continue a previous session using the session ID generated when you started the session.
 
-| Variable | Description |
-|----------|-------------|
-| `VLMRUN_API_KEY` | API key (required) |
-| `VLMRUN_BASE_URL` | Base URL (default: `https://agent.vlm.run/v1`) |
-| `VLMRUN_CACHE_DIR` | Cache directory (default: `~/.vlmrun/cache/artifacts/`) |
+```bash
+# Start a new session of an image generation task where a new character is generated
+vlmrun chat "Create an iconic scene of a ninja in a forest, practicing his skills with a katana?" -i photo.jpg
+
+# Use the previous chat session in context to retain the same character and scene context (where the session ID is <session_id>)
+vlmrun chat "Create a new scene with the same character meditating under a tree" -i photo.jpg -s <session_id>
+```
+
+### Skipping artifact download
+If you want to skip the artifact download, you can use the `-nd` flag.
+```bash
+vlmrun chat "What objects and people are visible in this image?" -i photo.jpg -nd
+```
 
 ## Notes
 
