@@ -14,13 +14,37 @@
 
 A Claude skill for interacting with VLM Run's Orion visual AI agent via CLI. Process images, videos, and documents with natural language prompts.
 
+
 ## Features
 
-- Image understanding, analysis, and generation
-- Video summarization, transcription, and generation
-- Document extraction (PDF, invoices, contracts)
-- Object detection, image segmentation, OCR and more
-- Compare images (visual diff)
+### Image Intelligence
+- **Understanding & Captioning**: Describe, analyze, and interpret images with state-of-the-art visual intelligence
+- **Detection & Localization**: Detect and locate objects, people, faces, and custom entities with bounding boxes
+- **Segmentation**: Segment objects, scenes, and regions with pixel-level precision
+- **Generation & Editing**: Generate images from text, edit existing images, apply super-resolution, colorize B&W photos
+- **Tools**: Crop, rotate, enhance resolution (4x-8x upscaling), de-oldify (colorization)
+- **Visual Grounding**: Point to and extract specific elements using natural language queries
+- **UI Parsing**: Extract UI elements, layouts, and hierarchies from screenshots
+
+### Video Intelligence
+- **Understanding & Captioning**: Describe video content, generate summaries and detailed scene analysis
+- **Transcription**: Extract audio transcripts with timestamps
+- **Tools**: Trim videos, extract keyframes, sample frames at intervals, detect highlights
+- **Segmentation**: Identify and segment objects across video frames
+- **Generation & Editing**: Generate videos from text prompts, edit existing videos
+
+### Document Intelligence
+- **Layout Understanding**: Detect headers, paragraphs, tables, figures, lists, and structural elements
+- **Multi-Page Analysis**: Process and analyze PDFs with intelligent page-aware extraction
+- **Markdown Extraction**: Convert documents to clean, structured markdown with preserved formatting
+- **Visual Grounding**: Locate and extract specific fields, sections, or data points
+- **Data Extraction**: Extract key information from invoices, receipts, contracts, forms into structured JSON
+
+### Multi-modal Agents
+- **Multi-Modal Reasoning**: Execute complex multi-step workflows across images, documents, and videos
+- **Structured Outputs**: Get results in validated JSON schemas with automatic retry logic
+
+See [docs](https://docs.vlm.run/agents/introduction) for more information.
 
 ## Installation
 
