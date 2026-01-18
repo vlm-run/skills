@@ -12,7 +12,7 @@
 </p>
 </div>
 
-A Claude skill for interacting with VLM Run's Orion visual AI agent via CLI. Process images, videos, and documents with natural language prompts.
+A Claude skill for interacting with VLM Run's [Orion visual AI agent](https://vlm.run/orion) via CLI. Process images, videos, and documents with natural language prompts.
 
 
 ## Features
@@ -44,7 +44,7 @@ A Claude skill for interacting with VLM Run's Orion visual AI agent via CLI. Pro
 - **Multi-Modal Reasoning**: Execute complex multi-step workflows across images, documents, and videos
 - **Structured Outputs**: Get results in validated JSON schemas with automatic retry logic
 
-See [docs](https://docs.vlm.run/agents/introduction) for more information.
+See [docs](https://docs.vlm.run/agents/introduction) and [technical whitepaper](https://vlm.run/orion/whitepaper) for more information.
 
 ## Installation
 
