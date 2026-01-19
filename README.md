@@ -14,6 +14,15 @@
 
 A Claude skill for interacting with VLM Run's [Orion visual AI agent](https://vlm.run/orion) via CLI. Process images, videos, and documents with natural language prompts.
 
+<p align="center">
+  <a href="https://vlm.run" target="_blank" rel="noopener noreferrer">
+    <img
+      src="https://github.com/user-attachments/assets/68c63ddf-b0c0-4724-8caa-e7ae818c2edb"
+      style="max-width: 400px; width: 70%;"
+      alt="vlm.run"
+    />
+  </a>
+</p>
 
 ## Features
 
