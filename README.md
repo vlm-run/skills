@@ -30,6 +30,37 @@ In practice, skills are self-contained folders that package instructions, script
   </a>
 </p>
 
+## Features
+
+### Image Intelligence
+- **Understanding & Captioning**: Describe, analyze, and interpret images with state-of-the-art visual intelligence
+- **Detection & Localization**: Detect and locate objects, people, faces, and custom entities with bounding boxes
+- **Segmentation**: Segment objects, scenes, and regions with pixel-level precision
+- **Generation & Editing**: Generate images from text, edit existing images, apply super-resolution, colorize B&W photos
+- **Tools**: Crop, rotate, enhance resolution (4x-8x upscaling), de-oldify (colorization)
+- **Visual Grounding**: Point to and extract specific elements using natural language queries
+- **UI Parsing**: Extract UI elements, layouts, and hierarchies from screenshots
+
+### Video Intelligence
+- **Understanding & Captioning**: Describe video content, generate summaries and detailed scene analysis
+- **Transcription**: Extract audio transcripts with timestamps
+- **Tools**: Trim videos, extract keyframes, sample frames at intervals, detect highlights
+- **Segmentation**: Identify and segment objects across video frames
+- **Generation & Editing**: Generate videos from text prompts, edit existing videos
+
+### Document Intelligence
+- **Layout Understanding**: Detect headers, paragraphs, tables, figures, lists, and structural elements
+- **Multi-Page Analysis**: Process and analyze PDFs with intelligent page-aware extraction
+- **Markdown Extraction**: Convert documents to clean, structured markdown with preserved formatting
+- **Visual Grounding**: Locate and extract specific fields, sections, or data points
+- **Data Extraction**: Extract key information from invoices, receipts, contracts, forms into structured JSON
+
+### Multi-modal Agents
+- **Multi-Modal Reasoning**: Execute complex multi-step workflows across images, documents, and videos
+- **Structured Outputs**: Get results in validated JSON schemas with automatic retry logic
+
+See [docs](https://docs.vlm.run/agents/introduction) and [technical whitepaper](https://vlm.run/orion/whitepaper) for more information.
+
 ## Installation
 
 ### Prerequisites
@@ -109,37 +140,6 @@ Your coding agent automatically loads the corresponding `SKILL.md` instructions 
 3. Add or edit supporting scripts, templates, and documents referenced by your instructions.
 4. Add an entry to `.claude-plugin/marketplace.json` with a concise, human-readable description.
 5. Reinstall or reload the skill bundle in your coding agent so the updated folder is available.
-
-## Features
-
-### Image Intelligence
-- **Understanding & Captioning**: Describe, analyze, and interpret images with state-of-the-art visual intelligence
-- **Detection & Localization**: Detect and locate objects, people, faces, and custom entities with bounding boxes
-- **Segmentation**: Segment objects, scenes, and regions with pixel-level precision
-- **Generation & Editing**: Generate images from text, edit existing images, apply super-resolution, colorize B&W photos
-- **Tools**: Crop, rotate, enhance resolution (4x-8x upscaling), de-oldify (colorization)
-- **Visual Grounding**: Point to and extract specific elements using natural language queries
-- **UI Parsing**: Extract UI elements, layouts, and hierarchies from screenshots
-
-### Video Intelligence
-- **Understanding & Captioning**: Describe video content, generate summaries and detailed scene analysis
-- **Transcription**: Extract audio transcripts with timestamps
-- **Tools**: Trim videos, extract keyframes, sample frames at intervals, detect highlights
-- **Segmentation**: Identify and segment objects across video frames
-- **Generation & Editing**: Generate videos from text prompts, edit existing videos
-
-### Document Intelligence
-- **Layout Understanding**: Detect headers, paragraphs, tables, figures, lists, and structural elements
-- **Multi-Page Analysis**: Process and analyze PDFs with intelligent page-aware extraction
-- **Markdown Extraction**: Convert documents to clean, structured markdown with preserved formatting
-- **Visual Grounding**: Locate and extract specific fields, sections, or data points
-- **Data Extraction**: Extract key information from invoices, receipts, contracts, forms into structured JSON
-
-### Multi-modal Agents
-- **Multi-Modal Reasoning**: Execute complex multi-step workflows across images, documents, and videos
-- **Structured Outputs**: Get results in validated JSON schemas with automatic retry logic
-
-See [docs](https://docs.vlm.run/agents/introduction) and [technical whitepaper](https://vlm.run/orion/whitepaper) for more information.
 
 ## Environment Variables
 
