@@ -6,7 +6,7 @@
     "name": "VLM Run"
   },
   "homepage": "https://vlm.run",
-  "repository": "https://github.com/vlm-run/vlmrun-cli-skill",
+  "repository": "https://github.com/vlm-run/skills",
   "license": "Apache-2.0",
   "keywords": [
     "vlmrun",

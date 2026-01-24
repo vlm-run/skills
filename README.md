@@ -6,7 +6,7 @@
 <p align="center"><a href="https://docs.vlm.run"><b>Website</b></a> | <a href="https://app.vlm.run/"><b>Platform</b></a> | <a href="https://docs.vlm.run/"><b>Docs</b></a> | <a href="https://docs.vlm.run/blog"><b>Blog</b></a> | <a href="https://discord.gg/AMApC2UzVY"><b>Discord</b></a>
 </p>
 <p align="center">
-<a href="https://github.com/vlm-run/vlmrun-cli-skill/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/vlm-run/vlmrun-cli-skill.svg"></a>
+<a href="https://github.com/vlm-run/skills/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/vlm-run/skills.svg"></a>
 <a href="https://discord.gg/AMApC2UzVY"><img alt="Discord" src="https://img.shields.io/badge/discord-chat-purple?color=%235765F2&label=discord&logo=discord"></a>
 <a href="https://twitter.com/vlmrun"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/vlmrun.svg?style=social&logo=twitter"></a>
 </p>
@@ -42,19 +42,19 @@ In practice, skills are self-contained folders that package instructions, script
 1. Register the repository as a plugin marketplace:
 
 ```
-/plugin marketplace add vlm-run/vlmrun-cli-skill
+/plugin marketplace add vlm-run/skills
 ```
 
 2. To install a skill, run:
 
 ```
-/plugin install <skill-name>@vlm-run/vlmrun-cli-skill
+/plugin install <skill-name>@vlm-run/skills
 ```
 
 For example:
 
 ```
-/plugin install vlmrun-cli-skill@vlm-run/vlmrun-cli-skill
+/plugin install vlmrun-cli-skill@vlm-run/skills
 ```
 
 #### Update the .env file
