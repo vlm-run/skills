@@ -1,0 +1,22 @@
+{
+  "name": "vlmrun-skills",
+  "description": "Agent Skills for visual AI tasks including image understanding, video processing, document extraction, and multi-modal generation using VLM Run's Orion agent",
+  "version": "1.0.0",
+  "author": {
+    "name": "VLM Run"
+  },
+  "homepage": "https://vlm.run",
+  "repository": "https://github.com/vlm-run/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "vlmrun",
+    "visual-ai",
+    "image-understanding",
+    "video-processing",
+    "document-extraction",
+    "ocr",
+    "image-generation",
+    "video-generation",
+    "multi-modal"
+  ]
+}
