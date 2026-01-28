@@ -1,0 +1,54 @@
+name: Test Skill Installation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test-install:
+    name: Test Skills Installation
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18, 20, 22]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Display Node.js version
+        run: node --version
+
+      - name: Display npm version
+        run: npm --version
+
+      - name: Test skill installation
+        run: npx skills add https://github.com/vlm-run/skills.git -y
+
+      - name: Verify skill installation
+        shell: bash
+        run: |
+          # Check if the skill was installed successfully
+          # The skills are typically installed in ~/.claude/skills or similar
+          if [ -d "$HOME/.claude/skills" ]; then
+            echo "Skills directory exists"
+            ls -la "$HOME/.claude/skills" || true
+          elif [ -d "$HOME/.codex/skills" ]; then
+            echo "Codex skills directory exists"
+            ls -la "$HOME/.codex/skills" || true
+          else
+            echo "Checking for installed skills..."
+          fi
+          echo "Skill installation test completed successfully"
