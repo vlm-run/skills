@@ -3,7 +3,7 @@
 Default vLLM serving arguments for OCR/VLM models. Use `--serve-args` to pass these when running benchmarks:
 
 ```bash
-vlmbench run --serve --backend vllm --model <model-id> --serve-args '<args>' -i <input>
+uvx vlmbench run --serve --backend vllm --model <model-id> --serve-args '<args>' -i <input>
 ```
 
 | Model | Params | vLLM `--serve-args` | Notes |
@@ -22,7 +22,7 @@ Some models need custom environments (non-standard vLLM images, extra pip instal
 
 ```bash
 # List available profiles
-vlmbench profiles
+uvx vlmbench profiles
 
 # Local: build once, serve, benchmark
 make build PROFILE=glm-ocr
