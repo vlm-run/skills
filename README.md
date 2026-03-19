@@ -88,9 +88,15 @@ For example:
 /plugin install vlmrun-cli-skill@vlm-run/skills
 ```
 
-#### Update the .env file
+#### Configure your API key
 
-Once the skill is installed, create an `.env` file (by copying from the `.env.template` file) with your API key that you can get from the dashboard at [https://app.vlm.run](https://app.vlm.run) and base URL.
+Once the skill is installed, configure your API key using the CLI (get your key from [app.vlm.run](https://app.vlm.run)):
+
+```bash
+vlmrun config init
+vlmrun config set --api-key <your-api-key>
+vlmrun config show
+```
 
 #### Verify Installation
 
@@ -141,13 +147,21 @@ Your coding agent automatically loads the corresponding `SKILL.md` instructions 
 4. Add an entry to `.claude-plugin/marketplace.json` with a concise, human-readable description.
 5. Reinstall or reload the skill bundle in your coding agent so the updated folder is available.
 
-## Environment Variables
+## Configuration
 
-| Variable | Description |
-|----------|-------------|
-| `VLMRUN_API_KEY` | Your VLM Run API key (required) |
-| `VLMRUN_BASE_URL` | API base URL (default: `https://agent.vlm.run/v1`) |
-| `VLMRUN_CACHE_DIR` | Cache directory (default: `~/.vlmrun/cache/artifacts/`) |
+Configure your API key and settings using the VLM Run CLI:
+
+```bash
+vlmrun config init
+vlmrun config set --api-key <your-api-key>
+vlmrun config show
+```
+
+| Setting | Description |
+|---------|-------------|
+| `api_key` | Your VLM Run API key (required) |
+| `base_url` | API base URL (default: `https://api.vlm.run/v1`) |
+| `cache_dir` | Cache directory (default: `~/.vlmrun/cache/artifacts/`) |
 
 ## License
 
