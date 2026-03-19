@@ -20,7 +20,7 @@ You must load the following variables in your environment so that the CLI can us
 | Variable | Type | Description |
 |----------|------|-------------|
 | `VLMRUN_API_KEY` | Required | Your VLM Run API key (required) |
-| `VLMRUN_BASE_URL` | Optional | Base URL (default: `https://agent.vlm.run/v1`) |
+| `VLMRUN_BASE_URL` | Optional | Base URL (default: `https://api.vlm.run/v1`) |
 | `VLMRUN_CACHE_DIR` | Optional | Cache directory (default: `~/.vlmrun/cache/artifacts/`) |
 
 ## Command
@@ -104,6 +104,29 @@ vlmrun chat "Create a new scene with the same character meditating under a tree"
 If you want to skip the artifact download, you can use the `-nd` flag.
 ```bash
 vlmrun chat "What objects and people are visible in this image?" -i photo.jpg -nd
+```
+
+## Skills Management
+
+Manage reusable skills via `vlmrun skills`.
+
+```bash
+# List / inspect
+vlmrun skills list
+vlmrun skills list --grouped
+vlmrun skills get my-skill
+vlmrun skills get my-skill -V 20260312-abc
+
+# Upload a skill folder (name/description from SKILL.md frontmatter)
+vlmrun skills upload ./my-skill
+
+# Download a skill
+vlmrun skills download my-skill
+vlmrun skills download my-skill -o ./local-dir
+
+# Create from prompt or session
+vlmrun skills create --prompt "Extract invoice fields"
+vlmrun skills create --session-id <session-uuid>
 ```
 
 ## Notes
