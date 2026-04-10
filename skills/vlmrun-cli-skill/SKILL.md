@@ -43,8 +43,11 @@ vlmrun chat "<prompt>" -i input.jpg [options]
 | `-i, --input` | Input file(s) - images, videos, docs (repeatable) |
 | `-o, --output` | Artifact directory (default: `~/.vlmrun/cache/artifacts/`) |
 | `-m, --model` | `vlmrun-orion-1:fast`, `vlmrun-orion-1:auto` (default), `vlmrun-orion-1:pro` |
-| `-s, --session` | Optional session ID to continue a previous session |
-| `-j, --json` | Raw JSON output |
+| `-k, --skill` | Path to a local skill directory (inline). Repeatable. Cannot be used with `--skill-id`. |
+| `--skill-id` | Server-side skill as `<name>:<version>` (e.g. `my-skill:latest`). Repeatable. Cannot be used with `--skill`. |
+| `-t, --toolset` | Tool category to enable (repeatable): `core`, `image`, `image-gen`, `world-gen`, `viz`, `document`, `video`, `web` |
+| `-s, --session-id` | Session UUID to continue a previous session |
+| `-f, --format` | Output format (`json` for JSON output) |
 | `-ns, --no-stream` | Disable streaming |
 | `-nd, --no-download` | Skip artifact download |
 
@@ -110,6 +113,68 @@ vlmrun chat "Create a new scene with the same character meditating under a tree"
 If you want to skip the artifact download, you can use the `-nd` flag.
 ```bash
 vlmrun chat "What objects and people are visible in this image?" -i photo.jpg -nd
+```
+
+### Inline Skills
+
+Inline skills let you attach a local skill directory directly to a `chat` request using the `--skill` (`-k`) flag. The directory is bundled and sent with the request — no server-side upload needed. Each skill directory must contain a `SKILL.md` file (with optional YAML frontmatter for name/description) and may include additional files (schemas, scripts, assets).
+
+```bash
+# Use a local skill to process an image
+vlmrun chat "Extract the key fields from this receipt" -i receipt.jpg --skill ./receipt-extraction-skill
+
+# Use a local skill to process a document
+vlmrun chat "Parse this invoice" -i invoice.pdf --skill ./invoice-skill --format json
+
+# Combine an inline skill with a specific model
+vlmrun chat "Analyze this chart" -i chart.png --skill ./chart-analysis-skill -m vlmrun-orion-1:pro
+
+# Use multiple inline skills in a single request
+vlmrun chat "Summarize and extract tables" -i report.pdf --skill ./summarize-skill --skill ./table-extraction-skill
+
+# Let the skill's built-in prompt drive the request (empty prompt)
+vlmrun chat "" -i form.pdf --skill ./form-extraction-skill
+
+# Inline skill with a toolset for visualization output
+vlmrun chat "Detect objects and visualize" -i photo.jpg --skill ./detection-skill -t viz
+```
+
+**Skill directory structure:**
+```
+my-skill/
+├── SKILL.md        # Required — instructions + optional YAML frontmatter
+├── schema.json     # Optional — output JSON schema
+└── assets/         # Optional — additional resources
+    └── examples.md
+```
+
+**Example SKILL.md frontmatter:**
+```markdown
+---
+name: receipt-extraction
+description: Extract vendor, line items, and totals from receipt images
+---
+
+# Receipt Extraction
+
+Extract structured data from receipt images...
+```
+
+> **Tip:** Use `--skill` for rapid local development and iteration. Once your skill is ready, upload it with `vlmrun skills upload ./my-skill` so it can be referenced by name using `--skill-id`.
+
+### Server-side Skills
+
+Reference previously uploaded skills by name and version using the `--skill-id` flag.
+
+```bash
+# Use a server-side skill by name (defaults to latest version)
+vlmrun chat "Extract the key fields" -i receipt.jpg --skill-id receipt-extraction:latest
+
+# Pin a specific skill version
+vlmrun chat "Parse this document" -i doc.pdf --skill-id invoice-parser:20260312-abc
+
+# Combine a server-side skill with JSON output
+vlmrun chat "Analyze this form" -i form.pdf --skill-id form-analysis:latest --format json
 ```
 
 ## Skills Management
