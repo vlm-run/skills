@@ -118,6 +118,7 @@ This repository contains skills for interacting with VLM Run's Orion visual AI a
 | Name | Description | Documentation |
 |------|-------------|---------------|
 | `vlmrun-cli-skill` | Use the VLM Run CLI to interact with Orion visual AI agent. Process images, videos, and documents with natural language. Supports image understanding/generation, object detection, OCR, video summarization, document extraction, and visual AI chat. | [SKILL.md](skills/vlmrun-cli-skill/SKILL.md) |
+| `mm-skill` | Use the mm CLI to index, explore, query, and extract content from multi-modal directories containing images, videos, PDFs, code, and other files. | [SKILL.md](skills/mm-skill/SKILL.md) |
 
 ### Using skills in your coding agent
 
