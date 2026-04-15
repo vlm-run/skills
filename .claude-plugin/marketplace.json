@@ -13,6 +13,12 @@
       "source": "./skills/vlmrun-cli-skill",
       "skills": "./",
       "description": "Use the VLM Run CLI to interact with Orion visual AI agent. Process images, videos, and documents with natural language. Supports image understanding/generation, object detection, OCR, video summarization, document extraction, and visual AI chat."
+    },
+    {
+      "name": "mm-cli-skill",
+      "source": "./skills/mm-cli-skill",
+      "skills": "./",
+      "description": "Use the mm CLI to index, explore, query, and extract content from multimodal directories containing images, videos, PDFs, code, and other files. Supports file discovery, content extraction, text/semantic search, token counting, and LLM-powered descriptions."
     }
   ]
 }
