@@ -120,6 +120,7 @@ This repository contains skills for interacting with VLM Run's Orion visual AI a
 | `vlmrun-cli-skill` | Use the VLM Run CLI to interact with Orion visual AI agent. Process images, videos, and documents with natural language. Supports image understanding/generation, object detection, OCR, video summarization, document extraction, and visual AI chat. | [SKILL.md](skills/vlmrun-cli-skill/SKILL.md) |
 | `mm-cli-skill` | Use the mm CLI to index, explore, query, and extract content from multimodal directories containing images, videos, PDFs, code, and other files. Supports file discovery, content extraction, text/semantic search, token counting, and LLM-powered descriptions. | [SKILL.md](skills/mm-cli-skill/SKILL.md) |
 | `vlmrun-gw` | Use the `vlmrun` Python SDK and CLI: `vlmrun gw` for documents, chat, embeddings and transcription on the VLM Run gateway, the same calls from Python via the OpenAI SDK, and the `VLMRun` client for typed predictions and agent executions. One self-contained SKILL.md: commands, models, methods, request knobs, response shapes, cost and errors. | [SKILL.md](skills/vlmrun-gw/SKILL.md) |
+| `vlmbench-cli-skill` | Use the vlmbench CLI to benchmark and compare VLM inference performance — the quickest way to measure any OpenAI-compatible provider or local server. Reports throughput (img/s, tok/s), TTFT, TPOT, latency percentiles and VRAM as reproducible JSON. | [SKILL.md](skills/vlmbench-cli-skill/SKILL.md) |
 
 ### Using skills in your coding agent
 
@@ -129,6 +130,7 @@ Once a skill is installed, mention it directly while giving your coding agent in
 - "Use the VLM Run CLI skill to generate an image of a sunset over mountains"
 - "Use the VLM Run CLI skill to extract the text from this receipt"
 - "Use the VLM Run CLI skill to summarize this meeting recording"
+- "Use the vlmbench skill to benchmark this VLM provider endpoint and compare it against my local server"
 
 Your coding agent automatically loads the corresponding `SKILL.md` instructions and helper scripts while it completes the task.
 
