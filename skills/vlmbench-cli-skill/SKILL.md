@@ -62,6 +62,23 @@ uvx vlmbench --profile deepseek-ocr -i ./images/ --serve             # profile b
 `vllm-openai:<tag>`, `sglang:<tag>`. `uvx vlmbench profiles` lists bundled model profiles.
 Watch the server live with `tmux attach -t vlmbench-vllm`.
 
+## Model serve-args
+
+Models that need specific vLLM flags. Pass them with `--serve-args`, or use `--profile` where one exists.
+
+| Model | Params | `--serve-args` | Notes |
+|---|---|---|---|
+| `lightonai/LightOnOCR-2-1B` | 1B | `--limit-mm-per-prompt '{"image": 1}' --mm-processor-cache-gb 0 --no-enable-prefix-caching` | |
+| `zai-org/GLM-OCR` | 0.9B | `--allowed-local-media-path /` | Prefer `--profile glm-ocr`, which adds MTP speculative decoding, vLLM nightly and transformers >= 5.1.0 |
+| `rednote-hilab/dots.ocr` | 3B | `--trust-remote-code --gpu-memory-utilization 0.95` | |
+| `allenai/olmOCR-2-7B-1025-FP8` | 8B FP8 | `--max-model-len 16384` | Based on Qwen2.5-VL-7B |
+| `Qwen/Qwen3-VL-8B-Instruct` and `-FP8` | 9B | `--mm-encoder-tp-mode "data"` | |
+| `deepseek-ai/DeepSeek-OCR-2` | 3B | — | Not in upstream vLLM; needs a [custom wheel](https://github.com/deepseek-ai/DeepSeek-OCR-2) |
+
+Profiles ship with the package as `vlmbench/profiles/<name>.yaml` and bundle the model, prompt,
+serve-args, Docker image and setup commands. Run `uvx vlmbench profiles` for the current list
+rather than assuming a given model has one.
+
 ## Flags worth knowing
 
 | Flag | Default | Notes |
@@ -88,5 +105,5 @@ prompt/completion token stats, VRAM peak and request reliability.
 Results are saved as JSON to `~/.vlmbench/benchmarks/{backend}-v{version}-{model}-{gpu}-{tag}.json`,
 one file per concurrency level (sweeps append `c4`, `c8`, … to the tag). Those files are what `compare` reads.
 
-Tested models and their required `--serve-args` are listed in
+The upstream table of tested models is kept in
 [MODELS.md](https://github.com/vlm-run/vlmbench/blob/main/.claude/skills/vlmbench/MODELS.md).
