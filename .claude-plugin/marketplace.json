@@ -25,6 +25,12 @@
       "source": "./skills/vlmrun-gw",
       "skills": "./",
       "description": "Use the `vlmrun` Python SDK and CLI: `vlmrun gw` for documents, chat, embeddings and transcription on the VLM Run gateway, the same calls from Python via the OpenAI SDK, and the `VLMRun` client for typed predictions and agent executions. One self-contained SKILL.md: commands, models, methods, request knobs, response shapes, cost and errors."
+    },
+    {
+      "name": "vlmbench-cli-skill",
+      "source": "./skills/vlmbench-cli-skill",
+      "skills": "./",
+      "description": "Use the vlmbench CLI to benchmark and compare VLM inference performance — the quickest way to measure any OpenAI-compatible provider or local server. Reports throughput (img/s, tok/s), TTFT, TPOT, latency percentiles and VRAM as reproducible JSON."
     }
   ]
 }
