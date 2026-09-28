@@ -15,11 +15,22 @@ uv pip install "vlmrun[cli]"
 
 ## Configuration
 
-Configure your API key and base URL using the CLI (get your key from [app.vlm.run](https://app.vlm.run)):
+Check for a saved key before asking the human for one. Do not print the key.
+
+```bash
+curl -sS "https://api.vlm.run/v1/models" \
+  -H "Authorization: Bearer $VLMRUN_API_KEY"
+```
+
+A 200 response means the key works. `401` means `VLMRUN_API_KEY` is empty in this shell. `403` with `Invalid API Key` means the saved key is wrong.
+
+If there is no working key, follow the HTTP signup runbook at [https://vlm.run/auth.md](https://vlm.run/auth.md). The human must explicitly agree to the terms. The runbook then returns a key for a new account, or a new key for an existing account. Save it as `VLMRUN_API_KEY`. A human can also copy a key from [Studio](https://app.vlm.run).
+
+Point the CLI at that key. Pass the environment variable so the secret is not written into the command text:
 
 ```bash
 vlmrun config init
-vlmrun config set --api-key <your-api-key>
+vlmrun config set --api-key "$VLMRUN_API_KEY"
 vlmrun config show
 ```
 

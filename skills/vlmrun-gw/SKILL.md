@@ -23,9 +23,17 @@ uvx --from vlmrun vlmrun gw models
 uvx --from vlmrun vlmrun gw chat report.pdf -m zai-org/glm-ocr
 
 # Or install once
-pip install -U vlmrun && vlmrun config set --api-key <key>
-# Get your API key (VLMRUN_API_KEY) from https://app.vlm.run
+pip install -U vlmrun
 ```
+
+Anonymous calls need no account. For a real key, check `VLMRUN_API_KEY` first and do not print it:
+
+```bash
+curl -sS "https://api.vlm.run/v1/models" \
+  -H "Authorization: Bearer $VLMRUN_API_KEY"
+```
+
+A 200 response means the key works. `401` means the variable is empty. `403` with `Invalid API Key` means the saved key is wrong. If there is no working key, follow [https://vlm.run/auth.md](https://vlm.run/auth.md). The human must explicitly agree to the terms. The runbook then returns `VLMRUN_API_KEY` for a new account, or a new key for an existing account. A human can also copy a key from [Studio](https://app.vlm.run). Store it with `vlmrun config set --api-key "$VLMRUN_API_KEY"`.
 
 Auth is a bearer token, the same `VLMRUN_API_KEY` used across VLM Run:
 
@@ -463,7 +471,7 @@ All SDK errors derive from `vlmrun.client.exceptions.VLMRunError`, each with a `
 
 | Exception | Cause |
 | --- | --- |
-| `AuthenticationError` (401/403) | Key missing or wrong. `VLMRun()` raises it at construction. |
+| `AuthenticationError` (401/403) | Key missing or wrong. Follow https://vlm.run/auth.md when `VLMRUN_API_KEY` is missing or rejected. `VLMRun()` raises this at construction. |
 | `ValidationError` (400/422) | Bad domain, schema or input |
 | `ResourceNotFoundError` (404) | Unknown prediction, execution, file or agent |
 | `RateLimitError` (429) | Back off |
