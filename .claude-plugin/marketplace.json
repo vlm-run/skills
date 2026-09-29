@@ -24,7 +24,7 @@
       "name": "vlmrun-gw",
       "source": "./skills/vlmrun-gw",
       "skills": "./",
-      "description": "Use the `vlmrun` Python SDK and CLI: `vlmrun gw` for documents, chat, embeddings and transcription on the VLM Run gateway, the same calls from Python via the OpenAI SDK, and the `VLMRun` client for typed predictions and agent executions. One self-contained SKILL.md: commands, models, methods, request knobs, response shapes, cost and errors."
+      "description": "Use the `vlmrun` Python SDK and CLI: `vlmrun gw` for documents, chat, embeddings, transcription, and System One typed decisions on the gateway `/typesafe` route; OpenAI-compatible gateway calls from Python; `typesafe-sdk` pointed at `https://gateway.vlm.run/typesafe`; and the `VLMRun` client for platform predictions and agent executions. One self-contained SKILL.md: commands, models, methods, request knobs, response shapes, cost and errors."
     }
   ]
 }
