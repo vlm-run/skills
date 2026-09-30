@@ -1,6 +1,6 @@
 ---
 name: vlmrun-gw
-description: Use the `vlmrun` Python SDK and CLI. The `vlmrun gw` CLI parses documents and runs chat completions over text, images and video on the VLM Run gateway (gateway.vlm.run), plus multimodal embeddings and audio transcription. The same gateway calls work from Python through the OpenAI SDK or `VLMRun().gateway`. The `VLMRun` client and `vlmrun generate` / `vlmrun execute` cover the platform API — schema-typed predictions, agent executions, files and hub domains. Covers every command and flag, model selection, methods, request knobs, response shapes, cost and errors. Use when asked to read/parse/OCR a PDF, scan, receipt or form, convert a document to markdown, extract text with bounding boxes, get a document's layout or tables, describe or answer questions about an image or video, embed images or text for search, transcribe speech, extract structured JSON from a document, or run and poll an agent execution.
+description: Use the `vlmrun` Python SDK and CLI. The `vlmrun gw` CLI parses documents and runs chat completions over text, images and video on the VLM Run gateway (gateway.vlm.run), plus multimodal embeddings, audio transcription, and System One typed decisions (noul / choice / score) over text, JSON, images and PDFs on the TypeSafe-compatible `/typesafe` route. The same gateway calls work from Python through the OpenAI SDK or `VLMRun().gateway`; System One also works through `typesafe-sdk` with `TYPESAFE_BASE_URL=https://gateway.vlm.run/typesafe`. The `VLMRun` client and `vlmrun generate` / `vlmrun execute` cover the platform API — schema-typed predictions, agent executions, files and hub domains. Covers every command and flag, model selection, methods, request knobs, response shapes, cost and errors. Use when asked to read/parse/OCR a PDF, scan, receipt or form, convert a document to markdown, extract text with bounding boxes, get a document's layout or tables, describe or answer questions about an image or video, embed images or text for search, transcribe speech, classify or route a document with calibrated probabilities, gate a pipeline with yes/no or multi-label decisions over vision, extract structured JSON from a document, or run and poll an agent execution.
 license: Apache-2.0
 ---
 
@@ -10,10 +10,11 @@ license: Apache-2.0
 
 `vlmrun gw` (alias `vlmrun gateway`) ships with the [`vlmrun` Python SDK](https://github.com/vlm-run/vlmrun-python-sdk)
 and drives `https://gateway.vlm.run/v1`: OCR, document-parsing, vision-language, embedding and
-transcription models behind one OpenAI-compatible API. This skill document is everything an agent needs
-to use the CLI in accessing the Gateway: which command and model to pick, how to shape a request, what comes back, what it costs, and what each error means. It also covers the rest of the SDK: the same gateway calls from Python (OpenAI SDK, `VLMRun().gateway`), and the platform API (`VLMRun` client, predictions, agent executions).
+transcription models behind one OpenAI-compatible API, plus System One on `https://gateway.vlm.run/typesafe`
+(typed `noul` / `choice` / `score` decisions, TypeSafe/Jev-compatible). This skill document is everything an agent needs
+to use the CLI in accessing the Gateway: which command and model to pick, how to shape a request, what comes back, what it costs, and what each error means. It also covers the rest of the SDK: the same gateway calls from Python (OpenAI SDK, `VLMRun().gateway`), System One via `typesafe-sdk` or `vlmrun gw s1`, and the platform API (`VLMRun` client, predictions, agent executions).
 
-**Use it for:** All `vlmrun gw` commands, such as documents → markdown or structured OCR; chat completions over text, images and video; multimodal embeddings; speech transcription. The gateway is a passthrough: one model, one call → the response. Use the [platform API](#platform-api-predictions-agents-and-executions) when the ask needs a typed schema, a hub domain (`document.invoice`), or an agent that runs as a job.
+**Use it for:** All `vlmrun gw` commands, such as documents → markdown or structured OCR; chat completions over text, images and video; multimodal embeddings; speech transcription; [System One](#system-one-typesafe-decisions) reads (typed `noul` / `choice` / `score` decisions with calibrated probabilities over text, JSON, images and PDFs). The gateway is a passthrough: one model, one call → the response. Use System One when the answer is a label or probability, not generated text. Use `vlmrun gw chat` when you need markdown, a caption, or a free-form answer. Use the [platform API](#platform-api-predictions-agents-and-executions) when the ask needs a hub domain schema (`document.invoice`), your own Pydantic `response_model`, or an agent that runs as a job.
 
 ## Quickstart
 
@@ -52,6 +53,7 @@ Anonymous access needs no signup. Good for basic exploration and test runs. Anon
 | `vlmrun gw chat <files/urls>... -m <model> [-p <prompt>] [--method M] [--method-params JSON] [-e k=v]... [--json-mode \| --response-format F] [-ns] [-j] [--timeout S]` | OCR, document parsing and chat completions over text, images, video and PDFs |
 | `vlmrun gw embed [<files>...] [-t <text>]... -m <model> [--join] [-d N] [-j] [--timeout S]`                                                                             | Multimodal embeddings                                                        |
 | `vlmrun gw transcribe <file> \| --url <url> -m <model> [-f json\|text\|verbose_json\|srt\|vtt] [-l xx] [-p <hint>] [-j] [--timeout S]`                                  | Speech to text                                                               |
+| `vlmrun gw s1 [<files>...] -s <state> [-m <model>] [--noul ID[=text]] [--choice ID="a\|b\|c"] [--score ID="l0\|l1\|..."] [-Q JSON] [--detail auto\|low\|high] [--gate expr]... [-j] [--timeout S]` (alias `systemone`) | Typed decisions: yes/no, multi-class, ordered score, batched in one read     |
 | `vlmrun gw health`                                                                                                                                                      | Liveness probe                                                               |
 
 The CLI reads local files or `http(s)` URLs, sniffs the MIME type, picks the right content part
@@ -253,6 +255,211 @@ vlmrun gw transcribe call.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -p "Acme, Käthe, K
 `-f srt`/`vtt` for subtitles, `verbose_json` for timestamps, `-l` for a language hint, `-p` to bias
 proper nouns. A clip with no speech returns an empty transcript, not an error.
 
+## System One (TypeSafe decisions)
+
+System One answers **typed questions** about a **state** (plain text, JSON object/array, or vision)
+and returns **calibrated probabilities**. Nothing is generated and nothing is parsed, so an answer
+cannot be off-schema. The route is wire-compatible with TypeSafe's Jev API: point `typesafe-sdk` at
+`https://gateway.vlm.run/typesafe` and existing clients work unchanged.
+
+| Surface | Base URL | Endpoint |
+| --- | --- | --- |
+| HTTP | `https://gateway.vlm.run/typesafe` | `POST /v1/systemone`, `GET /v1/models` |
+| WebSocket (per-frame video/stream) | `wss://gateway.vlm.run/typesafe` | `WS /ws` (same question set, binary frames in) |
+
+Auth is the same bearer token as the rest of the gateway: `Authorization: Bearer <VLMRUN_API_KEY>`.
+Anonymous tier (`Bearer vlmrun` / `VLMRUN_API_KEY=vlmrun`) applies here too, with the same IP quotas
+as [Quickstart](#quickstart). For the official SDK, set `TYPESAFE_API_KEY` to the same key (or pass
+`api_key=` in code). The SDK appends `/v1/systemone` to `TYPESAFE_BASE_URL`; there is no mapping layer.
+
+```bash
+export TYPESAFE_BASE_URL="https://gateway.vlm.run/typesafe"
+export TYPESAFE_API_KEY="$VLMRUN_API_KEY"
+# Required: upstream `jev-latest` is not served here; name a real model id.
+export TYPESAFE_DEFAULT_MODEL="google/diffusiongemma-26b-a4b-it"
+```
+
+`VLMRUN_GATEWAY_URL` does **not** cover System One; keep `/typesafe` separate from `/v1/openai`.
+
+### When to use which entry point
+
+| Ask | Use | Why |
+| --- | --- | --- |
+| "Is this scan an invoice?" (probability) | System One `noul` | One calibrated P(yes), never a malformed yes/no string |
+| "Which of these 6 document kinds?" | System One `choice` | Full label distribution + `confidence` |
+| "Gate the expensive OCR pass" | System One | Cheap read before `vlmrun gw chat` |
+| "Transcribe this page to markdown" | `vlmrun gw chat` | Free-form generation |
+| "Extract line items as JSON" with a hub schema | Platform `vlmrun generate` | Typed job + optional grounding, not a single forward read |
+
+Default vision engine: `google/diffusiongemma-26b-a4b-it`. List the current catalog:
+
+```bash
+curl -sS https://gateway.vlm.run/typesafe/v1/models -H "Authorization: Bearer $VLMRUN_API_KEY"
+vlmrun gw s1 --help    # CLI flags; `s1` is shorthand for `systemone`
+```
+
+Other served ids (check `GET /typesafe/v1/models`): `qwen/qwen3.5-0.8b`, `google/gemma-4-26b-a4b-it`,
+`qwen/qwen3.8-27b`. There is no `jev-latest` alias; an unknown `model` is `404`.
+
+### Question types
+
+Up to **16 questions** per request, keyed by caller-chosen ids (ids key `answers`, they are not sent
+to the model). Three `type` values:
+
+| `type` | Question shape | Answer fields |
+| --- | --- | --- |
+| `noul` | Yes/no; optional `criteria.true` / `criteria.false` descriptions | `noul`: P(yes) in [0, 1] |
+| `choice` | `criteria`: map of 2–128 labels → description or `null` | `choice`, `probabilities`, `confidence` |
+| `score` | `criteria`: ordered array of 2–10 level strings | `score` (expected level, 0-indexed), `legend`, `probabilities`, `confidence` |
+
+`confidence` is `1 - H(p)/ln(K)` (1 = peaked, 0 = uniform). Threshold on it for human review or
+fallback to a larger model. Probabilities are model-specific; revalidate thresholds when you change
+`model`.
+
+### Request body (`POST /typesafe/v1/systemone`)
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `state` | yes | Text, JSON object, or JSON array the questions refer to |
+| `model` | yes | Served id from `/typesafe/v1/models` |
+| `questions` | yes | Map id → `{type, instructions?, criteria?}` |
+| `content` | no | Media as OpenAI-style parts (see below). Bare string = one `text` part |
+| `reasoning_effort` | no | Generative engines only: `none` (default), `minimal`, `low` (`medium`/`high` → `422` today) |
+| `steps` | no | Diffusion engines: denoise steps 1–8 (default `1`, Jev contract) |
+| `samples` | no | Noise draws to average, 1–32 (each draw is billed) |
+
+**Content parts** (in `content`, or pass files as `vlmrun gw s1` positionals after `-s`):
+
+| Part | Limit | Notes |
+| --- | --- | --- |
+| `image_url` | ≤8 images, 5 MB each | `url` must be a `data:image/...;base64,...` URL (`http(s)` rejected) |
+| `file` or `document_url` | 1 PDF | First 8 pages rasterised at 96 DPI; `file_data` may be `data:...` or `http(s)` |
+| `text` | any | Appended after `state` |
+
+Send **images or one document, never both** (`422`). `detail` per part: `auto`/`high` = 280 vision
+tokens, `low` = 70. Use `low` for coarse routing/classification when fine print does not matter.
+
+Unknown top-level fields → `422` (stricter than upstream Jev, which ignores extras).
+
+### Response
+
+```json
+{
+  "model": "google/diffusiongemma-26b-a4b-it",
+  "answers": {
+    "kind": {
+      "type": "choice",
+      "choice": "invoice",
+      "probabilities": { "invoice": 0.88, "receipt": 0.07, "contract": 0.02, "other": 0.03 },
+      "confidence": 0.64
+    },
+    "has_total": { "type": "noul", "noul": 0.91 }
+  },
+  "usage": {
+    "input_tokens": 486,
+    "output_tokens": 0,
+    "input_tokens_details": { "cached_tokens": 0, "image_tokens": 280, "text_tokens": 206 },
+    "reads": 1,
+    "cost": 0.000129
+  }
+}
+```
+
+`usage.reads`, `usage.cost`, and `usage.input_tokens_details` are gateway extensions; `typesafe-sdk`
+ignores unknown fields and still parses. Responses include `x-typesafe-request-id` (mirrors
+`x-request-id`). Report winning labels, key probabilities, `confidence`, `usage.reads`, and
+`usage.cost`.
+
+### CLI: `vlmrun gw s1`
+
+```bash
+# Vision + batched questions (invoice page)
+vlmrun gw s1 -s "Answer about the attached page." invoice-page.jpg --detail high \
+  -m google/diffusiongemma-26b-a4b-it \
+  --choice kind="invoice|receipt|contract|other" \
+  --noul has_total="Is a total amount due visible on the page?" \
+  --score legibility="unreadable|partly legible|clear"
+
+# PDF routing (first 8 pages)
+vlmrun gw s1 -s "Answer about the document." packet.pdf --detail high \
+  -m google/diffusiongemma-26b-a4b-it \
+  --choice kind="invoice|contract|report|other" \
+  --noul has_signature="Is a signature block visible?"
+
+# Text-only gate (no file)
+vlmrun gw s1 -s "Customer email: please refund order 42 immediately." \
+  -m qwen/qwen3.5-0.8b \
+  --noul refund_requested="Does the state request a refund?" \
+  --choice urgency="low|medium|high" -j
+
+# Script gate: exit 1 if condition fails
+vlmrun gw s1 -s "..." scan.jpg -m google/diffusiongemma-26b-a4b-it \
+  --noul is_invoice="Is this an invoice?" --gate 'is_invoice>0.8' \
+  && vlmrun gw chat scan.jpg -m zai-org/glm-ocr
+```
+
+`-Q` accepts the wire map or a list form (`@file.json` / stdin). `--body` sends a full JSON body;
+other flags override. Video: sample frames with `--fps` / `--max-frames`, or `--ws` for one WebSocket
+session. `--dry-run` prints the JSON without sending.
+
+### Python (`typesafe-sdk`)
+
+```python
+import base64, os, pathlib
+from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
+
+client = TypeSafeClient(
+    api_key=os.environ["VLMRUN_API_KEY"],
+    base_url="https://gateway.vlm.run/typesafe",
+)
+page = base64.b64encode(pathlib.Path("invoice-page.jpg").read_bytes()).decode()
+
+result = client.system_one(
+    "Answer about the attached page.",
+    {
+        "kind": Choice(
+            instructions="What kind of document is this page from?",
+            criteria={"invoice": None, "receipt": None, "contract": None, "other": None},
+        ),
+        "has_total": Noul(instructions="Is a total amount due visible on the page?"),
+        "legibility": Score(
+            instructions="How legible is the text?",
+            criteria=["unreadable", "partly legible", "clear"],
+        ),
+    },
+    extra_body={
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{page}", "detail": "high"}},
+        ]
+    },
+    model="google/diffusiongemma-26b-a4b-it",
+)
+print(result.choices["kind"].choice, result.nouls["has_total"].noul, result.usage.cost)
+```
+
+`pip install typesafe-sdk`. TypeScript: `@typesafe-ai/sdk` with `baseURL: "https://gateway.vlm.run/typesafe"`.
+
+### Multi-gateway / Jevify-style base URL
+
+Any tool that speaks TypeSafe's Jev HTTP API can use VLM Run as a drop-in host: set base URL to
+`https://gateway.vlm.run/typesafe`, swap the API key to `VLMRUN_API_KEY`, and set an explicit
+`model` (or `TYPESAFE_DEFAULT_MODEL`). Shapes, question types, and answer fields match; only gateway
+extensions (`content`, `reasoning_effort`, `usage.cost`, vision) differ. Do not point `TYPESAFE_BASE_URL`
+at `/v1/openai`; that path is chat completions only.
+
+### System One errors
+
+| Status | When | Fix |
+| --- | --- | --- |
+| `422` | Invalid body, unknown field, images+PDF together, `medium`/`high` reasoning, diffusion + `reasoning_effort` | Read `detail[]`; fix schema; send only images or one PDF |
+| `404` | `model` not on `/typesafe` | `GET /typesafe/v1/models`; avoid `jev-latest` |
+| `429` | Rate limit | Same tiers as gateway; back off or authenticate |
+| `503` | Engine failure | Retry after `retry-after` (often 2 s) |
+| `529` | Overloaded queue | Retry after `retry-after` (often 1 s) |
+
+OpenAPI and field-level reference: `https://gateway.vlm.run/openapi.json` (paths under `/typesafe/`),
+docs: `https://docs.vlm.run/gateway/system-one`.
+
 ## Request knobs, all of them
 
 Standard OpenAI fields (`temperature`, `max_tokens`, `top_p`, `frequency_penalty`,
@@ -385,6 +592,8 @@ fails, report the exact command and the response.
 | "where are the people looking?" (pose)  | `vlmrun gw chat crowd.jpg -m usyd-community/vitpose-plus-large`                      |
 | "embed these product photos"            | `vlmrun gw embed shots/*.jpg -m qwen/qwen3-vl-embedding-2b --json`                   |
 | "subtitle this recording"               | `vlmrun gw transcribe talk.mp4 -m nvidia/parakeet-tdt-0.6b-v3 -f srt`                |
+| "is this scan an invoice?" (probability) | `vlmrun gw s1 -s "Answer about the page." scan.jpg -m google/diffusiongemma-26b-a4b-it --noul is_invoice="Is this an invoice?"` |
+| "classify this PDF before OCR"          | `vlmrun gw s1 -s "Answer about the document." doc.pdf --choice kind="invoice\|contract\|other" -m google/diffusiongemma-26b-a4b-it` |
 | "is the gateway up?"                    | `vlmrun gw health`                                                                   |
 
 ## Batches
@@ -483,9 +692,13 @@ Gateway calls through `client.gateway` or the OpenAI SDK raise `openai.APIStatus
 ## Re-checking this document
 
 Flags come from `vlmrun <cmd> --help`. The catalog, capabilities, response envelopes and error
-messages come from the live gateway. Client signatures come from `vlmrun/client/*.py` in the SDK repo. To re-check:
+messages come from the live gateway. System One shapes come from `https://gateway.vlm.run/openapi.json`
+(`/typesafe/*`) and `GET /typesafe/v1/models`. Client signatures come from `vlmrun/client/*.py` in the
+SDK repo. To re-check:
 
 ```bash
 VLMRUN_API_KEY=vlmrun uvx --from vlmrun vlmrun gw models --json
+curl -sS https://gateway.vlm.run/typesafe/v1/models -H "Authorization: Bearer vlmrun"
+uvx --from vlmrun vlmrun gw s1 --help
 uvx --from vlmrun vlmrun --help
 ```
