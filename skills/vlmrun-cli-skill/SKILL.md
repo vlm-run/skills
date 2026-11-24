@@ -1,44 +1,67 @@
 ---
 name: vlmrun-cli-skill
-description: "Use the VLM Run CLI (`vlmrun`) to interact with Orion visual AI agent. Process images, videos, and documents with natural language. Triggers: image understanding/generation, object detection, OCR, video summarization, document extraction, image generation, visual AI chat, 'generate an image/video', 'analyze this image/video', 'extract text from', 'summarize this video', 'process this PDF'."
+description: "Use the VLM Run CLI (`vlmrun chat`) to run the Orion visual AI agent on images, videos, documents and audio with natural language. Orion plans and runs tools: image and video generation, detection, editing, OCR and extraction, video summaries, multi-step visual tasks, and stateful sessions with artifacts. Triggers: 'generate an image/video', 'analyze this image/video', 'extract text from', 'summarize this video', 'process this PDF', 'edit/crop/redact this image'. For one-model gateway calls (OCR to markdown, VLM chat, embeddings, transcription, System One decisions), use `vlmrun gw` and the `vlmrun-gw` skill."
 ---
 
-# VLM Run CLI
+# VLM Run CLI: Orion agent
 
-Chat with VLM Run's Orion visual AI agent via CLI.
+`vlmrun chat` sends a prompt and local files to the Orion agent on the platform API (`https://api.vlm.run/v1`).
+Orion plans, calls tools, and returns text, JSON and generated files (artifacts).
+
+## Orion or the gateway
+
+| The ask | Use |
+| --- | --- |
+| Many steps, tool use, generated or edited images and video, a session you continue | `vlmrun chat` (this skill) |
+| One model, one call: document to markdown, OCR with boxes, layout | `vlmrun gw chat` |
+| A question about an image, PDF or video with a named VLM | `vlmrun gw chat -p` |
+| Embeddings | `vlmrun gw embed` |
+| Speech to text | `vlmrun gw transcribe` |
+| A yes/no, label or score with probabilities, or a pass/fail gate | `vlmrun gw s1` (System One) |
+
+For the gateway, read the `vlmrun-gw` skill (install: `npx skills add vlm-run/skills@vlmrun-gw`, or read
+https://vlm.run/gateway/SKILL.md). Gateway calls cost less per call and take URLs as inputs. Agents can also reach the
+gateway over MCP at `https://gateway.vlm.run/mcp`.
 
 ## Setup
+
 ```bash
-uv venv && source .venv/bin/activate
-uv pip install "vlmrun[cli]"
+pip install -U vlmrun        # the CLI is in the base package; there is no [cli] extra
+vlmrun --version
 ```
 
-## Configuration
-
-Check for a saved key before asking the human for one. Do not print the key.
+Check for a saved key before you ask the human for one. Do not print the key.
 
 ```bash
 curl -sS "https://api.vlm.run/v1/models" \
   -H "Authorization: Bearer $VLMRUN_API_KEY"
 ```
 
-A 200 response means the key works. `401` means `VLMRUN_API_KEY` is empty in this shell. `403` with `Invalid API Key` means the saved key is wrong.
+| Status | Meaning |
+| --- | --- |
+| 200 | The key works. |
+| 401 | `VLMRUN_API_KEY` is empty in this shell. |
+| 403 `Invalid API Key` | The saved key is wrong. |
 
-If there is no working key, follow the HTTP signup runbook at [https://vlm.run/auth.md](https://vlm.run/auth.md). The human must explicitly agree to the terms. The runbook then returns a key for a new account, or a new key for an existing account. Save it as `VLMRUN_API_KEY`. A human can also copy a key from [Studio](https://app.vlm.run).
+If there is no working key, follow the HTTP signup runbook at https://vlm.run/auth.md. The human must agree to the
+terms. The runbook returns a key for a new account, or a new key for an existing account. Save it as
+`VLMRUN_API_KEY`. A human can also copy a key from [Studio](https://app.vlm.run).
 
-Point the CLI at that key. Pass the environment variable so the secret is not written into the command text:
+The CLI reads the key from `--api-key`, then `VLMRUN_API_KEY`, then `~/.vlmrun/config.toml`. With the environment
+variable set, no config is needed. To save it to the config file, pass the variable so the secret is not in the
+command text:
 
 ```bash
-vlmrun config init
+vlmrun config init                          # creates ~/.vlmrun/config.toml
 vlmrun config set --api-key "$VLMRUN_API_KEY"
-vlmrun config show
+vlmrun config show                          # prints the key masked
 ```
 
-| Setting | Type | Description |
-|---------|------|-------------|
-| `api_key` | Required | Your VLM Run API key (required) |
-| `base_url` | Optional | Base URL (default: `https://api.vlm.run/v1`) |
-| `cache_dir` | Optional | Cache directory (default: `~/.vlmrun/cache/artifacts/`) |
+| Setting | Where | Default |
+| --- | --- | --- |
+| API key | `--api-key`, `VLMRUN_API_KEY`, or `api_key` in the config | none |
+| API base URL | `--base-url`, `VLMRUN_BASE_URL`, or `base_url` in the config | `https://api.vlm.run/v1` |
+| Cache directory | `VLMRUN_CACHE_DIR` | `~/.vlmrun/cache` |
 
 ## Command
 
@@ -46,25 +69,49 @@ vlmrun config show
 vlmrun chat "<prompt>" -i input.jpg [options]
 ```
 
-## Options
-
 | Flag | Description |
-|------|-------------|
-| `-p, --prompt` | Prompt text, file path, or `stdin` |
-| `-i, --input` | Input file(s) - images, videos, docs (repeatable) |
-| `-o, --output` | Artifact directory (default: `~/.vlmrun/cache/artifacts/`) |
+| --- | --- |
+| `PROMPT` | Prompt text. `-` reads stdin. |
+| `-p, --prompt` | Prompt text, a file path, or `stdin`. |
+| `-i, --input` | Local input file, repeatable. Not a URL: download it first. |
 | `-m, --model` | `vlmrun-orion-1:fast`, `vlmrun-orion-1:auto` (default), `vlmrun-orion-1:pro` |
-| `-k, --skill` | Path to a local skill directory (inline). Repeatable. Cannot be used with `--skill-id`. |
-| `--skill-id` | Server-side skill as `<name>:<version>` (e.g. `my-skill:latest`). Repeatable. Cannot be used with `--skill`. |
-| `-t, --toolset` | Tool category to enable (repeatable): `core`, `image`, `image-gen`, `world-gen`, `viz`, `document`, `video`, `web` |
-| `-s, --session-id` | Session UUID to continue a previous session |
-| `-f, --format` | Output format (`json` for JSON output) |
-| `-ns, --no-stream` | Disable streaming |
-| `-nd, --no-download` | Skip artifact download |
+| `-t, --toolset` | Limit tools to these categories, repeatable: `core`, `image`, `image-gen`, `world-gen`, `viz`, `document`, `video`, `web` |
+| `-k, --skill` | Local skill directory sent inline, repeatable. Not with `--skill-id`. |
+| `--skill-id` | Server-side skill as `<name>:<version>`, e.g. `my-skill:latest`. Repeatable. Not with `--skill`. |
+| `-s, --session-id` | Continue a session by its UUID. |
+| `-o, --output` | Artifact directory. Default `~/.vlmrun/cache/artifacts/<session_id>/`. |
+| `-f, --format` | `json` prints JSON instead of formatted text. |
+| `-ns, --no-stream` | Wait for the full reply. |
+| `-nd, --no-download` | Do not download artifacts. |
+| `--timeout` | Request timeout in seconds. |
+| `--base-url` | Agent API base URL. Default `https://api.vlm.run/v1`. |
+
+Input types: `.jpg .jpeg .png .gif .bmp .tiff .webp`, `.mp4 .mov .avi .mkv .webm`, `.pdf .doc .docx`,
+`.mp3 .wav .m4a .flac .ogg`. Multiple inputs upload at the same time.
+
+The formatted reply shows the session id in the panel title and the credits used in the footer. With
+`--format json`, add `-ns` to get `session_id` in the JSON: the streamed JSON has only `content`, `latency_s` and
+`usage`.
+
+### Orion-2
+
+The docs recommend `vlmrun-orion-2:auto` (code execution; variants `fast`, `auto`, `pro`). `vlmrun chat` 0.9.3
+accepts only `vlmrun-orion-1:*` and rejects Orion-2 with `Invalid model`. Call Orion-2 through the API:
+
+```bash
+curl -sS https://api.vlm.run/v1/openai/chat/completions \
+  -H "Authorization: Bearer $VLMRUN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model": "vlmrun-orion-2:auto", "messages": [{"role": "user", "content": [
+        {"type": "text", "text": "What is the total on this receipt?"},
+        {"type": "image_url", "image_url": {"url": "https://storage.googleapis.com/vlm-data-public-prod/hub/examples/document.receipt/playground/2.jpg"}}]}]}'
+```
+
+In Python: `VLMRun().agent.completions.create(model="vlmrun-orion-2:auto", messages=[...])`.
 
 ## Examples
 
 ### Images
+
 ```bash
 vlmrun chat "Describe what you see in this image in detail" -i photo.jpg
 vlmrun chat "Detect and list all objects visible in this scene" -i scene.jpg
@@ -72,147 +119,119 @@ vlmrun chat "Extract all text and numbers from this document image" -i document.
 vlmrun chat "Compare these two images and describe the differences" -i before.jpg -i after.jpg
 ```
 
-### Image Generation
+### Image generation and editing
+
 ```bash
 vlmrun chat "Generate a photorealistic image of a cozy cabin in a snowy forest at sunset" -o ./generated
 vlmrun chat "Remove the background from this product image and make it transparent" -i product.jpg -o ./output
 ```
 
 ### Video
+
 ```bash
 vlmrun chat "Summarize the key points discussed in this meeting video" -i meeting.mp4
 vlmrun chat "Find the top 3 highlight moments and create short clips from them" -i sports.mp4
-vlmrun chat "Transcribe this lecture with timestamps for each section" -i lecture.mp4 --json
+vlmrun chat "Transcribe this lecture with timestamps for each section" -i lecture.mp4 --format json -ns
 ```
 
-### Video Generation
+### Video generation
+
 ```bash
 vlmrun chat "Generate a 5-second video of ocean waves crashing on a rocky beach at golden hour" -o ./videos
 vlmrun chat "Create a smooth slow-motion video from this image" -i ocean.jpg -o ./output
 ```
 
 ### Documents
+
 ```bash
-vlmrun chat "Extract the vendor name, line items, and total amount" -i invoice.pdf --json
+vlmrun chat "Extract the vendor name, line items, and total amount" -i invoice.pdf --format json -ns
 vlmrun chat "Summarize the key terms and obligations in this contract" -i contract.pdf
 ```
 
-### Prompt Sources
-```bash
-# Direct prompt
-vlmrun chat "What objects and people are visible in this image?" -i photo.jpg
+### Prompt sources
 
-# Prompt from file
-vlmrun chat -p long_prompt.txt -i photo.jpg
-
-# Prompt from stdin
-echo "Describe this image in detail" | vlmrun chat - -i photo.jpg
-```
-
-### Continuing a previous session
-If you want to keep the past conversation and generated artifacts in context, you can use the `-s` flag to continue a previous session using the session ID generated when you started the session.
+The first source present wins: the argument, then `-p`, then piped stdin.
 
 ```bash
-# Start a new session of an image generation task where a new character is generated
-vlmrun chat "Create an iconic scene of a ninja in a forest, practicing his skills with a katana?" -i photo.jpg
-
-# Use the previous chat session in context to retain the same character and scene context (where the session ID is <session_id>)
-vlmrun chat "Create a new scene with the same character meditating under a tree" -i photo.jpg -s <session_id>
+vlmrun chat "What objects and people are visible in this image?" -i photo.jpg   # argument
+vlmrun chat -p long_prompt.txt -i photo.jpg                                       # file
+echo "Describe this image in detail" | vlmrun chat - -i photo.jpg                 # stdin
+echo "Describe this image in detail" | vlmrun chat -p stdin -i photo.jpg          # stdin
 ```
 
-### Skipping artifact download
-If you want to skip the artifact download, you can use the `-nd` flag.
+### Continue a session
+
+A session keeps the chat history and its artifacts. Take the session id from the panel title, or from
+`--format json -ns`.
+
+```bash
+vlmrun chat "Create an iconic scene of a ninja in a forest, practicing with a katana" -i photo.jpg
+vlmrun chat "Create a new scene with the same character meditating under a tree" -s <session_id>
+```
+
+Attach the input again with `-i` when the follow-up must read it.
+
+### Skip the artifact download
+
 ```bash
 vlmrun chat "What objects and people are visible in this image?" -i photo.jpg -nd
 ```
 
-### Inline Skills
+Download one later with `vlmrun artifacts get <object_id> -s <session_id> [-o path]`.
 
-Inline skills let you attach a local skill directory directly to a `chat` request using the `--skill` (`-k`) flag. The directory is bundled and sent with the request — no server-side upload needed. Each skill directory must contain a `SKILL.md` file (with optional YAML frontmatter for name/description) and may include additional files (schemas, scripts, assets).
+### Inline skills
+
+`-k/--skill` sends a local skill directory with the request. No upload is needed. The directory must contain
+`SKILL.md` (YAML frontmatter `name` and `description` is optional) and may hold more files (schemas, scripts,
+assets).
 
 ```bash
-# Use a local skill to process an image
 vlmrun chat "Extract the key fields from this receipt" -i receipt.jpg --skill ./receipt-extraction-skill
-
-# Use a local skill to process a document
 vlmrun chat "Parse this invoice" -i invoice.pdf --skill ./invoice-skill --format json
-
-# Combine an inline skill with a specific model
 vlmrun chat "Analyze this chart" -i chart.png --skill ./chart-analysis-skill -m vlmrun-orion-1:pro
-
-# Use multiple inline skills in a single request
 vlmrun chat "Summarize and extract tables" -i report.pdf --skill ./summarize-skill --skill ./table-extraction-skill
-
-# Let the skill's built-in prompt drive the request (empty prompt)
-vlmrun chat "" -i form.pdf --skill ./form-extraction-skill
-
-# Inline skill with a toolset for visualization output
+vlmrun chat "" -i form.pdf --skill ./form-extraction-skill       # the skill's instructions drive the request
 vlmrun chat "Detect objects and visualize" -i photo.jpg --skill ./detection-skill -t viz
 ```
 
-**Skill directory structure:**
 ```
 my-skill/
-├── SKILL.md        # Required — instructions + optional YAML frontmatter
-├── schema.json     # Optional — output JSON schema
-└── assets/         # Optional — additional resources
-    └── examples.md
+├── SKILL.md        # required: instructions, optional YAML frontmatter
+├── schema.json     # optional: output JSON schema
+└── assets/         # optional
 ```
 
-**Example SKILL.md frontmatter:**
-```markdown
----
-name: receipt-extraction
-description: Extract vendor, line items, and totals from receipt images
----
+Use `--skill` while you iterate. When the skill is ready, `vlmrun skills upload ./my-skill`, then refer to it with
+`--skill-id`.
 
-# Receipt Extraction
+### Server-side skills
 
-Extract structured data from receipt images...
-```
-
-> **Tip:** Use `--skill` for rapid local development and iteration. Once your skill is ready, upload it with `vlmrun skills upload ./my-skill` so it can be referenced by name using `--skill-id`.
-
-### Server-side Skills
-
-Reference previously uploaded skills by name and version using the `--skill-id` flag.
+Versions look like `20260911-399ea5e3`. `latest` picks the newest; a bare name means `latest`.
 
 ```bash
-# Use a server-side skill by name (defaults to latest version)
 vlmrun chat "Extract the key fields" -i receipt.jpg --skill-id receipt-extraction:latest
-
-# Pin a specific skill version
 vlmrun chat "Parse this document" -i doc.pdf --skill-id invoice-parser:20260312-abc
-
-# Combine a server-side skill with JSON output
 vlmrun chat "Analyze this form" -i form.pdf --skill-id form-analysis:latest --format json
 ```
 
-## Skills Management
-
-Manage reusable skills via `vlmrun skills`.
+## Skills management
 
 ```bash
-# List / inspect
-vlmrun skills list
-vlmrun skills list --grouped
-vlmrun skills get my-skill
-vlmrun skills get my-skill -V 20260312-abc
-
-# Upload a skill folder (name/description from SKILL.md frontmatter)
-vlmrun skills upload ./my-skill
-
-# Download a skill
-vlmrun skills download my-skill
-vlmrun skills download my-skill -o ./local-dir
-
-# Create from prompt or session
-vlmrun skills create --prompt "Extract invoice fields"
-vlmrun skills create --session-id <session-uuid>
+vlmrun skills list                          # -n/--limit (default 25), --offset, --order-by, --asc, -j
+vlmrun skills list --grouped                # latest version of each name
+vlmrun skills get my-skill                  # -V <version> to pin, -j for JSON
+vlmrun skills upload ./my-skill             # name and description from SKILL.md; override with -n / -d
+vlmrun skills download my-skill -o ./dir    # extracts to ./dir/my-skill/; default ~/.vlmrun/skills
+vlmrun skills create --prompt "Extract invoice fields" --schema schema.json
+vlmrun skills create --prompt-file prompt.md
+vlmrun skills create --file-id <uploaded-zip-id> -n my-skill
 ```
+
+There is no `skills update` command, and `skills create` has no `--session-id`.
 
 ## Notes
 
-- Use `-o ./<directory>` to save generated artifacts (images, videos) relative to your current working directory
-- Without `-o`, artifacts save to `~/.vlmrun/cache/artifacts/<session_id>/`
-- Multiple input files upload concurrently
+- `-o ./<dir>` saves artifacts relative to the working directory.
+- `vlmrun chat` takes local files only. For a URL, download it first, or use the API with an `image_url` part.
+- `vlmrun execute` runs a named agent as a job (`-n <agent>:<version>`, `--no-wait`, `--callback-url`). See
+  `vlmrun execute --help`.

@@ -111,15 +111,15 @@ You should be able to install the skill by simply asking Claude to create a new 
 
 ## Skills
 
-This repository contains skills for interacting with VLM Run's Orion visual AI agent. You can also contribute your own skills to the repository.
+This repository contains skills for VLM Run's Orion visual AI agent and the VLM Run Gateway. You can also contribute your own skills to the repository.
 
 ### Available skills
 
 | Name | Description | Documentation |
 |------|-------------|---------------|
-| `vlmrun-cli-skill` | Use the VLM Run CLI to interact with Orion visual AI agent. Process images, videos, and documents with natural language. Supports image understanding/generation, object detection, OCR, video summarization, document extraction, and visual AI chat. | [SKILL.md](skills/vlmrun-cli-skill/SKILL.md) |
+| `vlmrun-cli-skill` | Use the VLM Run CLI (`vlmrun chat`) to run the Orion visual AI agent on images, videos, documents and audio: image and video generation and editing, detection, OCR and extraction, video summaries, and stateful sessions with artifacts. Routes one-model gateway work (OCR, VLM chat, embeddings, transcription, System One) to `vlmrun gw` and the vlmrun-gw skill. | [SKILL.md](skills/vlmrun-cli-skill/SKILL.md) |
 | `mm-cli-skill` | Use the mm CLI to index, explore, query, and extract content from multimodal directories containing images, videos, PDFs, code, and other files. Supports file discovery, content extraction, text/semantic search, token counting, and LLM-powered descriptions. | [SKILL.md](skills/mm-cli-skill/SKILL.md) |
-| `vlmrun-gw` | Use the `vlmrun` Python SDK and CLI: `vlmrun gw` for documents, chat, embeddings, transcription, and System One typed decisions (noul / choice / score) on the gateway `/typesafe` route; the same OpenAI-shaped gateway calls from Python; `typesafe-sdk` with `TYPESAFE_BASE_URL=https://gateway.vlm.run/typesafe`; and the `VLMRun` client for platform predictions and agent executions. One self-contained SKILL.md: commands, models, methods, request knobs, response shapes, cost and errors. | [SKILL.md](skills/vlmrun-gw/SKILL.md) |
+| `vlmrun-gw` | Call VLM Run Gateway models with the `vlmrun gw` CLI, the OpenAI SDK, `VLMRun().gateway`, the MCP server or HTTP: OCR and document parsing, VLM chat over images, video and PDFs, detection, segmentation and pose, embeddings, transcription, file uploads, and typed decisions (System One, `POST /decisions`). Also the `VLMRun` client for platform predictions and agent executions. One self-contained SKILL.md: models by task, commands, knobs, response shapes, cost, limits and errors. | [SKILL.md](skills/vlmrun-gw/SKILL.md) |
 
 ### Using skills in your coding agent
 

@@ -1,6 +1,6 @@
 {
   "name": "vlmrun-skills",
-  "description": "Agent Skills for visual AI tasks including image understanding, video processing, document extraction, and multi-modal generation using VLM Run's Orion agent",
+  "description": "Agent Skills for VLM Run visual AI: the Orion agent (`vlmrun chat`) for multi-step image, video and document tasks, and the Gateway (`vlmrun gw`) for OCR, VLM chat, embeddings, transcription and System One decisions",
   "version": "1.0.0",
   "author": {
     "name": "VLM Run"
@@ -17,6 +17,13 @@
     "ocr",
     "image-generation",
     "video-generation",
-    "multi-modal"
+    "multi-modal",
+    "orion",
+    "gateway",
+    "openai-compatible",
+    "embeddings",
+    "transcription",
+    "system-one",
+    "mcp"
   ]
 }

@@ -4,7 +4,7 @@
     "name": "VLM Run"
   },
   "metadata": {
-    "description": "Agent Skills for visual AI tasks including image understanding, video processing, document extraction, and multi-modal generation using VLM Run's Orion agent",
+    "description": "Agent Skills for VLM Run visual AI: the Orion agent (`vlmrun chat`) for multi-step image, video and document tasks, and the Gateway (`vlmrun gw`) for OCR, VLM chat, embeddings, transcription and System One decisions",
     "version": "1.0.0"
   },
   "plugins": [
@@ -12,7 +12,7 @@
       "name": "vlmrun-cli-skill",
       "source": "./skills/vlmrun-cli-skill",
       "skills": "./",
-      "description": "Use the VLM Run CLI to interact with Orion visual AI agent. Process images, videos, and documents with natural language. Supports image understanding/generation, object detection, OCR, video summarization, document extraction, and visual AI chat."
+      "description": "Use the VLM Run CLI (`vlmrun chat`) to run the Orion visual AI agent on images, videos, documents and audio: image and video generation and editing, detection, OCR and extraction, video summaries, and stateful sessions with artifacts. Routes one-model gateway work (OCR, VLM chat, embeddings, transcription, System One) to `vlmrun gw` and the vlmrun-gw skill."
     },
     {
       "name": "mm-cli-skill",
@@ -24,7 +24,7 @@
       "name": "vlmrun-gw",
       "source": "./skills/vlmrun-gw",
       "skills": "./",
-      "description": "Use the `vlmrun` Python SDK and CLI: `vlmrun gw` for documents, chat, embeddings, transcription, and System One typed decisions on the gateway `/typesafe` route; OpenAI-compatible gateway calls from Python; `typesafe-sdk` pointed at `https://gateway.vlm.run/typesafe`; and the `VLMRun` client for platform predictions and agent executions. One self-contained SKILL.md: commands, models, methods, request knobs, response shapes, cost and errors."
+      "description": "Call VLM Run Gateway models with the `vlmrun gw` CLI, the OpenAI SDK, `VLMRun().gateway`, the MCP server or HTTP: OCR and document parsing, VLM chat over images, video and PDFs, detection, segmentation and pose, embeddings, transcription, file uploads, and typed decisions (System One, `POST /decisions`). Also the `VLMRun` client for platform predictions and agent executions. One self-contained SKILL.md: models by task, commands, knobs, response shapes, cost, limits and errors."
     }
   ]
 }
