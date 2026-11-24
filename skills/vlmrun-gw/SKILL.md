@@ -1,704 +1,723 @@
 ---
 name: vlmrun-gw
-description: Use the `vlmrun` Python SDK and CLI. The `vlmrun gw` CLI parses documents and runs chat completions over text, images and video on the VLM Run gateway (gateway.vlm.run), plus multimodal embeddings, audio transcription, and System One typed decisions (noul / choice / score) over text, JSON, images and PDFs on the TypeSafe-compatible `/typesafe` route. The same gateway calls work from Python through the OpenAI SDK or `VLMRun().gateway`; System One also works through `typesafe-sdk` with `TYPESAFE_BASE_URL=https://gateway.vlm.run/typesafe`. The `VLMRun` client and `vlmrun generate` / `vlmrun execute` cover the platform API — schema-typed predictions, agent executions, files and hub domains. Covers every command and flag, model selection, methods, request knobs, response shapes, cost and errors. Use when asked to read/parse/OCR a PDF, scan, receipt or form, convert a document to markdown, extract text with bounding boxes, get a document's layout or tables, describe or answer questions about an image or video, embed images or text for search, transcribe speech, classify or route a document with calibrated probabilities, gate a pipeline with yes/no or multi-label decisions over vision, extract structured JSON from a document, or run and poll an agent execution.
+description: Call VLM Run Gateway models (gateway.vlm.run) with the `vlmrun gw` CLI, the OpenAI SDK, `VLMRun().gateway`, the MCP server, or raw HTTP. Use to OCR or parse a PDF, scan, receipt or form into markdown, text with boxes, layout or tables; ask questions about images, video or PDFs; detect, segment or estimate pose; embed images or text; transcribe speech; get typed, calibrated decisions (yes/no, label, score, box) with System One or `POST /decisions`; upload local files; and run VLM Run platform predictions and agent executions.
 license: Apache-2.0
 ---
 
-# `vlmrun` SDK and `vlmrun gw` CLI
+# VLM Run Gateway: `vlmrun gw` CLI, SDKs, MCP and HTTP
 
-> VLMRun Gateway is a fully OpenAI-compatible API for visual intelligence, supporting OCR, visual question answering, detection, segmentation, and captioning behind a single endpoint. Point base_url to https://gateway.vlm.run/v1/openai and gain access to open-weight ocr, vlm, vite-pose and segmentation models without changing existing setup.
+The Gateway serves OCR, document, vision, chat, embedding and transcription models behind one
+OpenAI-compatible API, plus typed decisions (System One, Decisions). One model, one call, one
+response, with the cost in `usage.cost`. Facts here were checked against Gateway 0.66.0 and
+`vlmrun` 0.9.3. The live catalog wins over this file.
 
-`vlmrun gw` (alias `vlmrun gateway`) ships with the [`vlmrun` Python SDK](https://github.com/vlm-run/vlmrun-python-sdk)
-and drives `https://gateway.vlm.run/v1`: OCR, document-parsing, vision-language, embedding and
-transcription models behind one OpenAI-compatible API, plus System One on `https://gateway.vlm.run/typesafe`
-(typed `noul` / `choice` / `score` decisions, TypeSafe/Jev-compatible). This skill document is everything an agent needs
-to use the CLI in accessing the Gateway: which command and model to pick, how to shape a request, what comes back, what it costs, and what each error means. It also covers the rest of the SDK: the same gateway calls from Python (OpenAI SDK, `VLMRun().gateway`), System One via `typesafe-sdk` or `vlmrun gw s1`, and the platform API (`VLMRun` client, predictions, agent executions).
+## Pick a surface
 
-**Use it for:** All `vlmrun gw` commands, such as documents → markdown or structured OCR; chat completions over text, images and video; multimodal embeddings; speech transcription; [System One](#system-one-typesafe-decisions) reads (typed `noul` / `choice` / `score` decisions with calibrated probabilities over text, JSON, images and PDFs). The gateway is a passthrough: one model, one call → the response. Use System One when the answer is a label or probability, not generated text. Use `vlmrun gw chat` when you need markdown, a caption, or a free-form answer. Use the [platform API](#platform-api-predictions-agents-and-executions) when the ask needs a hub domain schema (`document.invoice`), your own Pydantic `response_model`, or an agent that runs as a job.
+| You need | Use |
+| --- | --- |
+| A shell, local files, quick runs, loops | `vlmrun gw` CLI |
+| Python code | OpenAI SDK at `https://gateway.vlm.run/openai`, or `VLMRun().gateway` |
+| An agent with no shell, or a host that already lists `vlmrun` MCP tools | [MCP server](#mcp-server) at `https://gateway.vlm.run/mcp` |
+| A label or probability, not text | [System One](#system-one-typed-decisions) (`vlmrun gw s1`), or [`POST /decisions`](#decisions) |
+| Many frames from one camera or video | [Realtime WebSocket](#realtime-websocket) (no CLI) |
+| A hub schema (`document.invoice`), your own Pydantic schema, or an agent job | [Platform API](#platform-api-predictions-and-agent-executions) (`VLMRun()`, `vlmrun generate`) |
 
-## Quickstart
+## Base URLs
+
+| Route | URL |
+| --- | --- |
+| OpenAI-compatible (chat, models, embeddings, transcriptions, files) | `https://gateway.vlm.run/openai` |
+| System One (TypeSafe/Jev-compatible) | `https://gateway.vlm.run/typesafe` (`POST /v1/systemone`, `GET /v1/models`) |
+| Decisions | `POST https://gateway.vlm.run/decisions` (alias `/v1/decisions`) |
+| MCP | `https://gateway.vlm.run/mcp` |
+| Realtime | `wss://gateway.vlm.run/v1/ws`, `wss://gateway.vlm.run/v1/ws/systemone` |
+| Health | `GET https://gateway.vlm.run/health` (returns `version`) |
+
+`/v1/openai` and `/v1/models` are aliases of `/openai` and `/openai/models`. They work, but new code
+should use `/openai`. The SDK and CLI default to `VLMRUN_GATEWAY_URL=https://gateway.vlm.run/v1`,
+append `/openai` (so they call the alias) and derive `/typesafe` from it. Override with
+`VLMRUN_GATEWAY_BASE_URL` or `VLMRUN_GATEWAY_URL`. `VLMRUN_BASE_URL` is the platform API, not the Gateway.
+
+## Install and auth
 
 ```bash
-# No install: uvx runs the CLI straight from PyPI
-uvx --from vlmrun vlmrun gw models
-uvx --from vlmrun vlmrun gw chat report.pdf -m zai-org/glm-ocr
-
-# Or install once
-pip install -U vlmrun
+pip install -U "vlmrun[typesafe]"          # [typesafe] is needed for `vlmrun gw s1`; add [video] for s1 on video
+uvx --from "vlmrun[typesafe]" vlmrun gw models   # no install
 ```
 
-Anonymous calls need no account. For a real key, check `VLMRUN_API_KEY` first and do not print it:
+| Caller | Header | Rate limit |
+| --- | --- | --- |
+| Anonymous | `Authorization: Bearer vlmrun`, or no header on REST | 10/min, 30/hr, 100/day per client IP; $2.00 spend per IP per day |
+| API key | `Authorization: Bearer $VLMRUN_API_KEY` | 240/min, 10,000/hr per user |
+
+- **CLI anonymous:** set `VLMRUN_API_KEY=vlmrun`. With the variable unset, `vlmrun gw chat` fails with
+  `Missing credentials`.
+- **Model access:** most models are public. Some need an API key `(key)`, or an organization with a
+  card on file `(paid)`. See [Models](#models). Refusals are `401`/`403` `model_not_entitled`, not billed.
+- **Key only:** `POST /openai/files`, `POST /v1/ws/client_secrets`, `/v1/ws/systemone`, and `/decisions` (paid).
+- **Anonymous rules:** a request with no `User-Agent` gets `429`. Replies carry `X-RateLimit-Limit`
+  and `X-RateLimit-Remaining`.
+
+Check a key without printing it. An empty variable falls back to anonymous and also returns 200, so test it first:
 
 ```bash
-curl -sS "https://api.vlm.run/v1/models" \
-  -H "Authorization: Bearer $VLMRUN_API_KEY"
+[ -n "$VLMRUN_API_KEY" ] && curl -sS -o /dev/null -w '%{http_code}\n' \
+  https://gateway.vlm.run/openai/models -H "Authorization: Bearer $VLMRUN_API_KEY"
+# 200: key works. 401: key is wrong.
 ```
 
-A 200 response means the key works. `401` means the variable is empty. `403` with `Invalid API Key` means the saved key is wrong. If there is no working key, follow [https://vlm.run/auth.md](https://vlm.run/auth.md). The human must explicitly agree to the terms. The runbook then returns `VLMRUN_API_KEY` for a new account, or a new key for an existing account. A human can also copy a key from [Studio](https://app.vlm.run). Store it with `vlmrun config set --api-key "$VLMRUN_API_KEY"`.
-
-Auth is a bearer token, the same `VLMRUN_API_KEY` used across VLM Run:
-
-| Caller    | How                                                                                 | Rate limit                          |
-| --------- | ----------------------------------------------------------------------------------- | ----------------------------------- |
-| Anonymous | no `Authorization` header, or `Bearer vlmrun`; for the CLI, `VLMRUN_API_KEY=vlmrun` | **10/min · 30/hr · 100/day** per IP |
-| API key   | `Authorization: Bearer <VLMRUN_API_KEY>`                                                 | **240/min · 10 000/hr**             |
-
-Anonymous access needs no signup. Good for basic exploration and test runs. Anonymous replies carry advisory `X-RateLimit-Limit` / `X-RateLimit-Remaining` headers. If a command picks up the wrong deployment, clear stale exports first: `unset VLMRUN_API_KEY VLMRUN_BASE_URL VLMRUN_GATEWAY_URL`.
+No working key: follow [https://vlm.run/auth.md](https://vlm.run/auth.md) (the human must agree to the
+terms), or copy one from [app.vlm.run](https://app.vlm.run/dashboard/settings/api-keys). Store it with
+`vlmrun config set --api-key "$VLMRUN_API_KEY"`. If calls hit the wrong deployment, clear stale exports:
+`unset VLMRUN_GATEWAY_URL VLMRUN_GATEWAY_BASE_URL VLMRUN_BASE_URL`.
 
 ## Commands
 
-| Command                                                                                                                                                                 | Does                                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `vlmrun gw models [<model>] [--json]`                                                                                                                                   | List the catalog, or one model's methods, params and example commands        |
-| `vlmrun gw chat <files/urls>... -m <model> [-p <prompt>] [--method M] [--method-params JSON] [-e k=v]... [--json-mode \| --response-format F] [-ns] [-j] [--timeout S]` | OCR, document parsing and chat completions over text, images, video and PDFs |
-| `vlmrun gw embed [<files>...] [-t <text>]... -m <model> [--join] [-d N] [-j] [--timeout S]`                                                                             | Multimodal embeddings                                                        |
-| `vlmrun gw transcribe <file> \| --url <url> -m <model> [-f json\|text\|verbose_json\|srt\|vtt] [-l xx] [-p <hint>] [-j] [--timeout S]`                                  | Speech to text                                                               |
-| `vlmrun gw s1 [<files>...] -s <state> [-m <model>] [--noul ID[=text]] [--choice ID="a\|b\|c"] [--score ID="l0\|l1\|..."] [-Q JSON] [--detail auto\|low\|high] [--gate expr]... [-j] [--timeout S]` (alias `systemone`) | Typed decisions: yes/no, multi-class, ordered score, batched in one read     |
-| `vlmrun gw health`                                                                                                                                                      | Liveness probe                                                               |
+| Command | Does |
+| --- | --- |
+| `vlmrun gw models [<model>] [-j]` | Catalog, or one model's methods, notes and example commands |
+| `vlmrun gw chat [<files/urls>...] -m <model> [-p <prompt>] [-M <method>] [--method-params JSON] [-e k=v]... [--json-mode \| --response-format F] [-ns] [-j] [--timeout S]` | OCR, parsing, vision models and chat over text, images, video, PDFs |
+| `vlmrun gw embed [<files/urls>...] [-t <text>]... -m <model> [--join] [-d N] [-j] [--timeout S]` | Embeddings (`-p` is an alias of `-t`) |
+| `vlmrun gw transcribe <file/url> \| --url <url> -m <model> [-f json\|text\|verbose_json\|srt\|vtt] [-l xx] [-p <hint>] [-j] [--timeout S]` | Speech to text (default `-f json`) |
+| `vlmrun gw s1 [<inputs>...] [-s <state>] [-m <model>] [--noul ID="q"] [--choice ID="a\|b"] [--score ID="l0\|l1"] [-Q JSON] [--detail auto\|low\|high] [-R <effort>] [-g <gate>]... [-j] [--dry-run]` | System One decisions (alias `systemone`). `vlmrun gw s1 models` lists engines. |
+| `vlmrun gw health` | Liveness probe |
 
-The CLI reads local files or `http(s)` URLs, sniffs the MIME type, picks the right content part
-(`document_url` / `image_url` / `video_url`), streams by default, and prints `usage.cost` and
-throughput in a footer. `-e key=value` is repeatable; values parse as JSON when they can
-(`-e temperature=0`, `-e stop='["\n"]'`, `-e document_pages='[[0,10]]'`). Standard OpenAI fields
-(`temperature`, `max_tokens`, `top_p`, `stop`, `n`, `logprobs`, ...) and gateway extensions
-(`method`, `document_dpi`, `video_fps`, ...) both go through `-e`; the CLI routes each to the
-right place. `--json` / `-j` prints the raw response for scripting.
+`vlmrun gateway` is the same as `vlmrun gw`. `chat` sends every input in one request, sniffs each
+file's type and picks `image_url`, `video_url` or `document_url`. It streams by default (`-ns` turns
+that off) and prints model, tokens, pages and `usage.cost` in a footer.
 
-The gateway URL comes from `VLMRUN_GATEWAY_URL` (default `https://gateway.vlm.run/v1`); it is
-independent of `VLMRUN_BASE_URL`, which points the rest of the CLI at the platform API.
+- **`-e key=value`:** repeatable. Values parse as JSON when they can (`-e temperature=0`,
+  `-e document_pages='[[0,10]]'`). Use it for OpenAI fields and for every Gateway kwarg.
+- **`-j`:** prints `{"model", "content", "latency_s", "usage"}`; `usage.cost` is in it.
+- **`--json-mode -j`:** prints the model's parsed JSON object, without `usage`.
+- **Errors:** the CLI shows only `Error code: 400` for a Gateway error. Re-run the same request with
+  `curl` or the OpenAI SDK to read the message.
 
-## The same requests from Python
+## Models
 
-The gateway is OpenAI-compatible. Any OpenAI client works with `base_url=https://gateway.vlm.run/v1/openai`.
-Gateway extensions (`method`, `document_dpi`, `video_fps`, ...) go in `extra_body`; they map 1:1 to `-e key=value` on the CLI.
+Read the catalog before you pick. It has 30 public models at 0.66.0.
+
+```bash
+vlmrun gw models                         # id, task, inputs, methods (default marked *)
+vlmrun gw models paddleocr/pp-ocrv6      # methods, method_params examples, realtime notes
+curl -sS https://gateway.vlm.run/openai/models -H "Authorization: Bearer vlmrun"   # raw: pricing, capabilities, supported_parameters
+```
+
+Address a model by its full id (`zai-org/glm-ocr`), its short form (`glm-ocr`) or its Hugging Face id
+(`zai-org/GLM-OCR`). The reply's `model` is the canonical id. Per-model prices, inputs and
+`method_params` are on the [catalog](https://vlm.run/gateway/models) and in `pricing` on `GET /openai/models`.
+
+### By task
+
+Access: public unless marked `(key)` or `(paid)`.
+
+| Task | Model, method | What you get |
+| --- | --- | --- |
+| PDF or scan to markdown | `zai-org/glm-ocr` `markdown` | Markdown per page |
+| | `vlm-run/ocr:auto` `markdown` | Markdown from a CPU parser (falls back to `dots.mocr`). Bills $0.001 per call at any page count. |
+| | `rednote-hilab/dots.mocr`, `paddlepaddle/paddleocr-vl-1.6`, `lightonai/lightonocr-3-4b`, `nvidia/nemotron-3.5-parse` `markdown` | Markdown per page. `dots.mocr` is the MCP `read_document` default. |
+| Text lines with boxes and scores | `paddleocr/pp-ocrv6` `ocr` (default) | `doc.ocr.lines`. `method_params`: `score_threshold`, `word_boxes`. `text` returns plain text, `detect` boxes only. |
+| Layout blocks (label + box) | `nvidia/nemotron-3.5-parse` `layout`, `lightonai/lightonocr-3-4b` `grounding` (with text) or `layout`, `rednote-hilab/dots.mocr` `parse_layout` (with text) or `parse_layout_only`, `vlm-run/ocr:auto` `layout` | `doc.page.blocks` |
+| Tables, formulas, charts | `paddlepaddle/paddleocr-vl-1.6` `table`, `formula`, `chart` | `table` returns OTSL cell tokens (`<fcel>`, `<nl>`) |
+| Captions, open-vocabulary boxes | `microsoft/florence-2-base-ft` `caption` (default), `detailed_caption`, `more_detailed_caption`, `od`, `dense_region_caption`, `region_proposal`, `ocr`, `ocr_with_region` | Text, or `img.detect.bboxes` |
+| COCO object detection | `roboflow/rfdetr-large` `detect` | `img.detect.bboxes` |
+| Segmentation | `facebook/sam3.1` `segment` (text prompt), `segment_box`, `segment_point`, `track` (video) | `img.segment.masks`, `vid.segment.masks` |
+| | `roboflow/rfdetr-seg-large` `segment` (COCO classes), `detect` | `img.segment.masks` |
+| Body pose (image or video) | `usyd-community/vitpose-plus-large` `pose` | `img.pose.kpts` (COCO 17 keypoints), `vid.pose.kpts` |
+| Hand pose, 3D | `geopavlakos/hamer` `pose` | `img.pose.hands3d` |
+| Chat VLM, public | `qwen/qwen3.5-0.8b`, `google/diffusiongemma-26b-a4b-it` | Free text. Text, images, PDF; video on qwen only. |
+| Chat VLM, larger | `qwen/qwen3.8-27b` (key) | Reasoning, tools, 168k context, up to 64 images or 1 video |
+| | `google/gemma4-26b-a4b-it` (paid) | Tools, up to 64 images or 1 video |
+| Provider chat models (paid) | `google/gemini-3.5-flash-lite`, `gemini-3.7-flash`, `gemini-3.8-flash`, `gemini-4-argon`, `gemini-4-carbon`, `gemini-robotics-er-2-preview`, `moonshotai/kimi-k3`, `minimax/minimax-m3`, `meta/muse-spark-1.2`, `meta/muse-glimmer-30b` | Text, images, video, whole PDF. `muse-glimmer-30b` has no `json_schema`. |
+| Embeddings | `qwen/qwen3-vl-embedding-2b` | 2048 dims; text, image, video |
+| | `google/embeddinggemma-2` | 768 dims (truncate to 512, 256, 128); text, image, video, PDF |
+| Transcription | `nvidia/parakeet-tdt-0.6b-v3` | Transcript, segments, subtitles |
+| Typed decisions | System One: `google/diffusiongemma-26b-a4b-it` (default) | See [System One](#system-one-typed-decisions) |
+| | Decisions: `google/gemini-decision-1` (paid) | See [Decisions](#decisions) |
+
+Rules of thumb:
+
+- Printed text goes to an OCR or document model, not a chat VLM. OCR models reject text-only prompts.
+- Use a chat VLM for questions about a scene, a video, or a whole PDF. Plain prompt, no `--method`.
+  The self-hosted chat VLMs also have `markdown` and `layout` methods, which return a `<document>`
+  envelope like an OCR model.
+- OCR, detection, segmentation and pose models take one image (or one PDF) per request. A second
+  `image_url` is a `400`. Send several images to a chat VLM, or loop.
+- `qwen/qwen3.8-27b` reasons by default, which spends completion tokens. Turn it off with
+  `-e chat_template_kwargs='{"enable_thinking": false}'`.
+
+## Documents
+
+The Gateway rasterises a PDF server-side and runs the model per page (chat VLMs on `chat` read the
+whole PDF in one call). Do not split pages yourself.
+
+```bash
+vlmrun gw chat report.pdf -m zai-org/glm-ocr                                   # markdown per page
+vlmrun gw chat report.pdf -m vlm-run/ocr:auto                                  # markdown, $0.001 per call
+vlmrun gw chat scan.png -m paddleocr/pp-ocrv6 --method ocr                     # lines with boxes and scores
+vlmrun gw chat sheet.pdf -m rednote-hilab/dots.mocr --method parse_layout      # layout blocks with text
+vlmrun gw chat statement.pdf -m paddlepaddle/paddleocr-vl-1.6 --method table
+vlmrun gw chat book.pdf -m zai-org/glm-ocr -e document_pages='[[10,20]]' -e document_dpi=150
+```
+
+Text-mode envelope, one `<document>` per PDF, one `<page>` per page:
+
+```text
+<document mimetype="application/pdf" npages="1" dpi="96">
+<page id="0" format="markdown" width="816" height="1056">
+| Title of each class | Trading Symbol(s) | ...
+</page>
+</document>
+```
+
+- `<document>` attributes: `file_name` (omitted for `data:` URIs, so for CLI local files), `mimetype`,
+  `npages`, `dpi`, and `language` when the model reports one.
+- `<page>` attributes: `id` (0-based), `format` (`markdown`, or `json` for region methods), `width`, `height`, `status`.
+- A failed page is self-closing with `status="error"`. Numbering stays intact. If every page fails, the call is a `502`.
+- `document_pages` renumbers the selected pages from 0.
+
+| Kwarg | Default | Meaning |
+| --- | --- | --- |
+| `document_dpi` | `96` | Raster DPI per page (72 to 400). Raise for fine print. |
+| `document_pages` | all | 0-based indices and `[start, stop)` ranges, e.g. `[0, [2, 4]]` |
+| `document_max_pages` | `128` | Page cap. A longer PDF is a `400` that names the ranges to send. Read it in sections. |
+| `document_mode` | method's mode | Chat VLMs: `document` (whole PDF, default on `chat`) or `page` (default on `markdown`, `layout`) |
+
+Limits: one `document_url` (or `file_url`, `file`) part per request; 256 MB; no images or video in the
+same request. Prefer an `http(s)` URL over base64. For a local file, see [Files](#files).
+
+## Chat over text, images and video
+
+```bash
+vlmrun gw chat -m qwen/qwen3.5-0.8b -p "In one sentence: what is OCR?"                     # text only
+vlmrun gw chat receipt.jpg -m qwen/qwen3.5-0.8b -p "What store is this from?"
+vlmrun gw chat a.jpg b.jpg -m qwen/qwen3.8-27b -p "What changed between these?"           # multi-image (key)
+vlmrun gw chat clip.mp4 -m qwen/qwen3.5-0.8b -p "Describe what happens" -e video_fps=1 -e video_max_frames=8
+vlmrun gw chat photo.jpg -m google/gemini-3.5-flash-lite -p "Describe it"                 # paid
+vlmrun gw chat receipt.jpg -m qwen/qwen3.5-0.8b -p "Reply as JSON with keys store,total" --json-mode
+vlmrun gw chat receipt.jpg -m qwen/qwen3.5-0.8b -p "Extract store and total" \
+  --response-format '{"type":"json_schema","json_schema":{"name":"r","schema":{"type":"object","properties":{"store":{"type":"string"},"total":{"type":"number"}},"required":["store","total"]}}}'
+```
+
+- Chat VLM output passes through verbatim, with no envelope, in every `response_format`.
+- `json_schema` works where `capabilities.supports_json_schema` is true: Qwen, `gemma4` and provider
+  models, not `google/diffusiongemma-26b-a4b-it` or `meta/muse-glimmer-30b`. The CLI help says it is
+  "not yet honored server-side"; that is wrong.
+- Video: one clip per request. Gateway knobs: `video_fps`, `video_max_frames`, `video_resolution`
+  (`256x192` to `640x480`). Images: `image_resolution` (`224x224` to `768x768`).
+- `video_fps` with no video part is a `400`. On `minimax/minimax-m3` and `meta/muse-spark-1.2` it is
+  a `400` `upstream_error` (their provider has no frame sampling). Other models accept it.
+- Sampling fields are checked against the model's `supported_parameters`. An unlisted one is a `400`
+  (`google/diffusiongemma-26b-a4b-it` refuses `temperature` and `seed`). OCR models accept and ignore them.
+
+## Detection, segmentation and pose
+
+These return records, not prose. Use `--json-mode` (`response_format={"type": "json_object"}` in code) when code parses them.
+
+```bash
+vlmrun gw chat street.jpg -m roboflow/rfdetr-large --json-mode -j                        # img.detect.bboxes
+vlmrun gw chat street.jpg -m facebook/sam3.1 -p "hat" --method-params '{"mask_format":"none"}'   # masks for a text prompt
+vlmrun gw chat street.jpg -m facebook/sam3.1 --method segment_box --method-params '{"bbox_xywh":[0.1,0.1,0.4,0.5]}'
+vlmrun gw chat crowd.jpg -m usyd-community/vitpose-plus-large --json-mode -j               # img.pose.kpts
+vlmrun gw chat hands.jpg -m geopavlakos/hamer --json-mode -j                               # img.pose.hands3d
+vlmrun gw chat photo.jpg -m microsoft/florence-2-base-ft --method detailed_caption
+```
+
+`facebook/sam3.1` takes its target from `-p` or from `method_params.prompt`. Keys per model are in
+[Extra Kwargs](https://docs.vlm.run/gateway/extra-kwargs#method-params-by-model).
+
+## Embeddings
+
+```bash
+vlmrun gw embed photo.jpg -m qwen/qwen3-vl-embedding-2b                         # 1 vector, 2048 dims
+vlmrun gw embed a.jpg b.jpg -t "a caption" -m qwen/qwen3-vl-embedding-2b       # 3 vectors
+vlmrun gw embed photo.jpg -t "its caption" --join -m qwen/qwen3-vl-embedding-2b   # 1 fused vector
+vlmrun gw embed -t "a blue parrot" -m qwen/qwen3-vl-embedding-2b -d 64
+vlmrun gw embed photo.jpg -m google/embeddinggemma-2 --json                    # full vectors and usage.cost
+```
+
+Every file and every `-t` is its own vector unless `--join` fuses them (one file at most). The CLI
+refuses a PDF on its side. `google/embeddinggemma-2` embeds a PDF over HTTP:
+`input=[[{"type": "document_url", "document_url": {"url": ...}}]]`. Report vector count and
+dimension, never raw floats.
+
+## Transcription
+
+```bash
+vlmrun gw transcribe clip.mp3 -m nvidia/parakeet-tdt-0.6b-v3
+vlmrun gw transcribe meeting.mp4 -m nvidia/parakeet-tdt-0.6b-v3            # a video's audio track
+vlmrun gw transcribe clip.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -f srt        # subtitles
+vlmrun gw transcribe clip.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -f verbose_json -j   # segments with timestamps
+vlmrun gw transcribe --url https://example.com/a.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -l en
+```
+
+- `-l` is a language hint. The model lists `language`, `response_format` and
+  `timestamp_granularities`, not `prompt`, so `-p` is sent but has no listed effect.
+- Audio with no speech returns an empty transcript, not an error.
+- `json` and `verbose_json` carry `usage` (`input_audio_seconds`, `cost`). `text`, `srt` and `vtt` return the transcript only.
+
+## Response shapes
+
+| Mode | Request | Reply |
+| --- | --- | --- |
+| Text (default) | omit `response_format` | One block per request: a bare payload for an image, a `<document>` envelope for a PDF, verbatim text for a chat VLM |
+| JSON | `--json-mode` / `{"type": "json_object"}` | One object: `model`, `method`, input metadata, then `content` (image, video) or `pages` (PDF). No `data` list. Buffered, even when streaming. |
+| JSON schema | `--response-format '{"type":"json_schema",...}'` | Chat VLMs and provider models only. OCR, layout and region models return `400` `capability_violation` on `response_format`. |
+
+JSON mode input keys: image `image_hash`, `image_width`, `image_height`; video `video_hash`,
+`video_width`, `video_height`, `video_fps`, `video_nframes`, `video_duration`; PDF `file_name`,
+`document_mimetype`, `document_npages`, `document_dpi`, `document_language`, then `pages[]` of
+`{"object": "doc.page", "page_id", "page_width", "page_height", "content"}`.
+
+Parse by `content.object`:
+
+| Tag | From |
+| --- | --- |
+| `doc.ocr.lines` | `paddleocr/pp-ocrv6` `ocr`: `bbox_xywh`, `poly_xy`, `text`, `score` |
+| `doc.page.blocks` | layout methods: `block_id`, `bbox_xywh`, `label`, `text` (when read) |
+| `img.detect.bboxes` | `rfdetr-large`, `florence-2` `od`: `bbox_xywh`, `label`, `score` |
+| `img.segment.masks` / `vid.segment.masks` | `sam3.1`, `rfdetr-seg-large`: items plus a label `mask` |
+| `img.pose.kpts` / `vid.pose.kpts` | `vitpose-plus-large`: `kpts_xy`, `kpts_score`, container `kpts_labels` |
+| `img.pose.hands3d` | `hamer`: `kpts_xy`, `kpts_xyz`, `pos_xyz`, `side` |
+
+Coordinates are normalised 0 to 1 (`bbox_xywh` is `[x, y, w, h]`). Multiply by the image width and
+height for pixels. `precision` (1 to 8, default 4) sets the decimals. Responses also carry
+`served_model_id`, `backend` and `provider`, and an `x-request-id` header. Full types:
+[Response Types](https://docs.vlm.run/gateway/response-types).
+
+## Request knobs
+
+Put Gateway kwargs at the top level of the JSON body, in `extra_body` on the OpenAI Python SDK, or in
+`-e` on the CLI. `--method` and `--method-params` are CLI shorthands.
+
+| Kwarg | Default | Applies to |
+| --- | --- | --- |
+| `method`, `method_params` | model's `default_method` | Which entrypoint runs, and its arguments |
+| `document_dpi`, `document_pages`, `document_max_pages`, `document_mode` | `96`, all, `128`, by method | PDFs |
+| `video_fps`, `video_max_frames`, `video_resolution` | model's own | `video_url` |
+| `image_resolution` | none | Images |
+| `precision` | `4` | Floats in structured payloads |
+| `chat_template_kwargs` | none | Self-hosted chat models, e.g. `{"enable_thinking": false}` |
+
+A method the model does not list is a `400` naming the supported ones. An unknown top-level key or
+`method_params` key is ignored, so check spelling. Full list:
+[Extra Kwargs](https://docs.vlm.run/gateway/extra-kwargs).
+
+## Files
+
+`POST /openai/files` uploads a local file once and returns a signed `url` (valid 7 days) to pass in
+any `*_url` part. It needs an API key (anonymous is `401`). The upload is free; the read bills as usual.
+
+```bash
+curl -sS https://gateway.vlm.run/openai/files -H "Authorization: Bearer $VLMRUN_API_KEY" -F file=@scan.pdf
+# {"id": "...", "object": "file", "bytes": ..., "filename": "...", "purpose": "assistants", "url": "https://storage.googleapis.com/..."}
+curl -sS https://gateway.vlm.run/openai/files/<id> -H "Authorization: Bearer $VLMRUN_API_KEY"   # fresh url
+```
+
+In Python: `client.files.create(file=open("scan.pdf", "rb"), purpose="assistants").url`. A `.txt` file is a `415`.
+
+## Python
+
+### OpenAI SDK
 
 ```python
 import base64, os, pathlib
 from openai import OpenAI
 
-client = OpenAI(base_url="https://gateway.vlm.run/v1/openai", api_key=os.environ["VLMRUN_API_KEY"], timeout=600)
+client = OpenAI(base_url="https://gateway.vlm.run/openai", api_key=os.environ["VLMRUN_API_KEY"], timeout=700)
 pdf = base64.b64encode(pathlib.Path("report.pdf").read_bytes()).decode()
 r = client.chat.completions.create(
     model="zai-org/glm-ocr",
     messages=[{"role": "user", "content": [
         {"type": "document_url", "document_url": {"url": f"data:application/pdf;base64,{pdf}"}},
     ]}],
-    extra_body={"method": "markdown", "document_dpi": 96, "document_pages": [[0, 10]]},
+    extra_body={"method": "markdown", "document_pages": [[0, 10]]},
 )
 print(r.choices[0].message.content, r.usage.model_extra["cost"])
 
 client.embeddings.create(model="qwen/qwen3-vl-embedding-2b", input=["a blue parrot"], dimensions=64)
 client.audio.transcriptions.create(model="nvidia/parakeet-tdt-0.6b-v3", file=open("clip.mp3", "rb"), response_format="srt")
-client.models.list()                      # catalog; extra fields on model.model_extra
+client.models.list()   # extra fields (methods, pricing, capabilities) on model.model_extra
 ```
 
-Content parts: `image_url` (`http(s)` or `data:image/...;base64,`), `video_url`, `document_url`. Use `http(s)` URLs when you can; base64 is for local files.
+- Content parts: `text`, `image_url`, `video_url`, `document_url` (alias `file_url`), `file`. URLs are `http(s)` or `data:` URIs.
+- Streaming: `usage.cost` arrives on the final chunk.
+- Errors raise `openai.APIStatusError`; the Gateway body is in `.body`.
+- Keep the client timeout above the 600 s model deadline.
 
-`VLMRun().gateway` is the same OpenAI client, pre-wired. It reads `VLMRUN_API_KEY` and `VLMRUN_GATEWAY_URL`, and raises the default timeout from 120 s to 600 s (an explicit `VLMRun(timeout=...)` is kept as is).
+### `VLMRun().gateway`
+
+The same OpenAI client, pre-wired. It reads `VLMRUN_API_KEY` and the gateway URL, and raises the
+default timeout from 120 s to 600 s.
 
 ```python
 from vlmrun.client import VLMRun
 
-client = VLMRun()
-gw = client.gateway
-gw.completions.create(model="zai-org/glm-ocr", messages=[...], extra_body={...})   # gw.async_completions for asyncio
+gw = VLMRun().gateway        # VLMRun() needs a key; VLMRUN_API_KEY=vlmrun works for anonymous use
+gw.completions.create(model="glm-ocr", messages=[...], extra_body={...})   # gw.async_completions for asyncio
 gw.embeddings.create(model="qwen/qwen3-vl-embedding-2b", input=["text"])
 gw.transcriptions.create(model="nvidia/parakeet-tdt-0.6b-v3", file=open("clip.mp3", "rb"))
-gw.models()        # list of OpenAI Model objects
-gw.health()        # bool
+gw.models()                  # list of OpenAI Model objects
+gw.health()                  # bool
+gw.systemone.decide(state="I was charged twice", questions=[{"id": "billing", "type": "noul", "instructions": "Is this a billing issue?"}])
 ```
 
-Raw HTTP works too: `POST https://gateway.vlm.run/v1/openai/chat/completions` with `Authorization: Bearer <VLMRUN_API_KEY>` and the same JSON body, extensions at the top level next to `model` and `messages`. Prefer the OpenAI client. It handles streaming, retries and typing for you.
+Raw HTTP works too: `POST https://gateway.vlm.run/openai/chat/completions`, kwargs at the top level next to `model` and `messages`.
 
-## Models
+## System One (typed decisions)
 
-Always list and inspect the model catalog for an accurate list of serving models:
+System One answers typed questions about a **state** (text, a JSON object or array, images, or one
+PDF) and returns calibrated probabilities. Nothing is generated and parsed, so an answer cannot be
+off-schema. Use it when the answer is a label or a probability. Use `chat` for free text.
 
-```bash
-vlmrun gw models                       # every model with task, methods and inputs
-vlmrun gw models zai-org/glm-ocr       # methods, params and example commands for one model
-vlmrun gw models --json                # raw catalog, including per-model capabilities
-```
+`POST https://gateway.vlm.run/typesafe/v1/systemone` is wire-compatible with TypeSafe's Jev API. Same
+bearer as the rest of the Gateway; anonymous `vlmrun` works on the public engines.
 
-Each model has a `task` (`chat`, `embed`, `transcribe`), a list of `methods` with a default, the
-inputs it accepts, and `capabilities` such as `supports_json_schema`. Use the full `<org>/<name>` id or name alias.
-
-Examples of models per category and workflow (check `vlmrun gw models` for the current list):
-
-| Category | Example models | Typical methods | Use for |
+| Engine (`GET /typesafe/v1/models`) | Read | Access | Note |
 | --- | --- | --- | --- |
-| Document to markdown | `zai-org/glm-ocr`, `infly/infinity-parser2-flash`, `baidu/unlimited-ocr` | `markdown` | Contracts, reports, books. Start with `glm-ocr`. |
-| Layout-aware parsing | `rednote-hilab/dots.mocr`, `deepseek-ai/deepseek-ocr-2` | `parse_layout`, `grounding_ocr`, `markdown` | Keep headings and tables, locate text on the page |
-| OCR with regions | `paddleocr/pp-ocrv6`, `microsoft/florence-2-base-ft` | `ocr`, `detect`, `text`, `ocr_with_region` | Text with confidence and boxes, receipts, forms |
-| Tables, formulas, charts | `paddlepaddle/paddleocr-vl-1.6` | `table`, `formula`, `chart` | Statements, papers, dashboards |
-| Vision and captioning | `microsoft/florence-2-base-ft` | `caption`, `detailed_caption`, `od` | Captions and object detection on one image |
-| Pose | `usyd-community/vitpose-plus-large` | `pose` | 2D human pose on images and video |
-| Chat VLMs | `google/gemini-3.7-flash`, `google/gemini-3.5-flash-lite`, `qwen/qwen3.8-27b`, `qwen/qwen3.5-0.8b` | none (plain prompt) | Questions about images, video, or a whole PDF (Gemini) |
-| Embeddings | `qwen/qwen3-vl-embedding-2b` | `embed` | Text, image and video vectors for search |
-| Transcription | `nvidia/parakeet-tdt-0.6b-v3` | `transcribe` | Speech to text, subtitles |
+| `google/diffusiongemma-26b-a4b-it` | diffusion | public | CLI default. Docs: prefer it when you threshold on probabilities. |
+| `google/gemma4-26b-a4b-it` | generative | paid | The only engine that takes `reasoning_effort` |
+| `qwen/qwen3.8-27b` | generative | key | |
+| `qwen/qwen3.5-0.8b` | generative | public | Lowest cost per read; less peaked answers |
 
-Rules of thumb:
+`model` is required; there is no `jev-latest` alias (`404`). Generative calibration is experimental:
+validate thresholds on your own data, and again when you change engines.
 
-- For text on a page, use an OCR or document model. Small chat VLMs misread dense text, and an
-  OCR model costs less.
-- Use a chat VLM when the question is about a scene or video understanding, or when it spans an entire PDF. Only chat VLMs that list `document_url` in their inputs accept a PDF with a prompt.
-- Text-only prompts work on chat VLMs only. OCR models reject them.
+### Questions
 
-## Documents
+Up to 16 per request, keyed by your ids (ids are not sent to the model).
 
-The gateway rasterises a PDF server-side, runs the model per page, and stitches the pages back.
-You do not split or loop on your side.
-
-```bash
-vlmrun gw chat report.pdf -m zai-org/glm-ocr                      # → markdown per page
-vlmrun gw chat scan.png -m paddleocr/pp-ocrv6 --method ocr        # → regions with scores + polygons
-vlmrun gw chat sheet.pdf -m rednote-hilab/dots.mocr --method parse_layout
-vlmrun gw chat statement.pdf -m paddlepaddle/paddleocr-vl-1.6 --method table
-vlmrun gw chat form.png -m deepseek-ai/deepseek-ocr-2 --method grounding_ocr \
-    --method-params '{"prompt": "<image>\nLocate <|ref|>title<|/ref|> in the image."}'
-```
-
-Every document reply uses the same envelope: one `<document>` per input PDF, one `<page>` per
-page. Example output for a 1-page PDF through `zai-org/glm-ocr`:
-
-```xml
-<document mimetype="application/pdf" num_pages="1" dpi="96">
-<page page_index="0" format="markdown" page_width="900" page_height="500">
-<table><tr><td>Invoice #A-1042</td></tr><tr><td>TOTAL: $46.25</td></tr></table>
-</page>
-</document>
-```
-
-- `format` is `markdown` for markdown methods, `json` for region methods (`ocr`, `detect`,
-  `parse_layout`).
-- A page that fails is self-closing with `status="error"`. The document still returns with page
-  numbering intact. Do not assume a missing body means an empty page.
-- `<document>` also carries `file_name` for `http(s)` inputs (omitted for data URIs).
-
-### Document knobs
-
-| Field                              | Default                          | Meaning                                                                                                                                           |
-| ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `method`                           | `markdown` when the model has it | Per-page backend method                                                                                                                           |
-| `document_dpi`                     | `96`                             | Rasterisation DPI; honoured to 400 while the page's long edge fits 20 000 px, else `min(dpi, 140)`. Raise it for fine print.                      |
-| `document_pages`                   | all                              | 0-indexed pages and/or `[start, stop)` ranges, e.g. `[[0, 10], 15]`. Only those pages are rasterised, so sections cost no more than one big call. |
-| `document_max_pages`               | `128`                            | Per-request page cap                                                                                                                              |
-
-Hard limits: at most 8 `document_url`/`file_url` parts per request; documents cannot be mixed with
-`image_url` or `video_url` in the same request. A PDF longer than `document_max_pages` returns a 400
-that names the ranges to use. Read it in sections with `document_pages`. Do not truncate.
-
-## Chat completions over text, images and video
-
-Chat VLMs take a plain prompt with no `--method`. Their reply passes through verbatim.
-
-```bash
-vlmrun gw chat -m qwen/qwen3.5-0.8b -p "In one sentence: what is OCR?"     # text only, no file
-vlmrun gw chat street.jpg -p "How many people are wearing helmets?" -m google/gemini-3.7-flash
-vlmrun gw chat a.jpg b.jpg c.jpg -p "What changed between these?" -m qwen/qwen3.8-27b
-vlmrun gw chat clip.mp4 -p "Describe what happens" -m qwen/qwen3.8-27b
-vlmrun gw chat https://example.com/photo.jpg -p "Describe it" -m google/gemini-3.5-flash-lite
-vlmrun gw chat img.jpg -p "Reply as JSON with keys label,count" -m qwen/qwen3.8-27b --json-mode
-```
-
-- Multi-image: chat VLMs reason over all images and answer once (`≤64` for the qwen models);
-  structured models run per image and return one block each.
-- Video: one clip per request. The chat VLMs and Gemini models ingest video natively.
-- Streaming is on by default (`-ns` / `--no-stream` to disable).
-
-### Video sampling
-
-| Field              | Default                 | Meaning                                                           |
-| ------------------ | ----------------------- | ----------------------------------------------------------------- |
-| `video_fps`        | uniform across the clip | Target sample rate                                                |
-| `video_max_frames` | `8`                     | Hard cap on sampled frames                                        |
-| `video_resolution` | source                  | 4:3 preset: `256x192`, `320x240`, `448x336`, `512x384`, `640x480` |
-
-```bash
-vlmrun gw chat clip.mp4 -p "How many distinct scenes?" -m google/gemini-3.7-flash \
-    -e video_fps=1 -e video_max_frames=16
-```
-
-Both fields are gateway extensions. Natively served models and Gemini honour them. Other
-provider-routed models reject `video_fps` with a 400. Either field without a video input is also
-a 400.
-
-For images, `image_resolution` accepts `224x224`, `336x336`, `384x384`, `448x448`, `512x512`,
-`768x768`. The gateway resizes and center-crops before the model's own processor.
-
-## Embeddings
-
-```bash
-vlmrun gw embed photo.jpg -m qwen/qwen3-vl-embedding-2b            # 1 vector, 2048 dims
-vlmrun gw embed a.jpg b.jpg -t "a caption" -m qwen/qwen3-vl-embedding-2b   # 3 vectors
-vlmrun gw embed photo.jpg -t "its caption" --join -m qwen/qwen3-vl-embedding-2b   # 1 fused vector
-vlmrun gw embed -t "a blue parrot" -m qwen/qwen3-vl-embedding-2b -d 64
-vlmrun gw embed photo.jpg -m qwen/qwen3-vl-embedding-2b --json      # full vectors for a store
-```
-
-Every file and every `-t` is its own vector unless `--join` fuses them (max one file per fused
-vector). Images, video and text only. The gateway rejects a PDF, so OCR it and embed the text.
-
-Report vector count and dimension. Never paste raw floats into a reply.
-
-## Transcription
-
-```bash
-vlmrun gw transcribe clip.mp3 -m nvidia/parakeet-tdt-0.6b-v3
-vlmrun gw transcribe meeting.mp4 -m nvidia/parakeet-tdt-0.6b-v3        # video's audio track
-vlmrun gw transcribe clip.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -f srt    # subtitles
-vlmrun gw transcribe clip.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -f verbose_json   # timestamps
-vlmrun gw transcribe --url https://example.com/a.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -l en
-vlmrun gw transcribe call.mp3 -m nvidia/parakeet-tdt-0.6b-v3 -p "Acme, Käthe, Kubernetes"
-```
-
-`-f srt`/`vtt` for subtitles, `verbose_json` for timestamps, `-l` for a language hint, `-p` to bias
-proper nouns. A clip with no speech returns an empty transcript, not an error.
-
-## System One (TypeSafe decisions)
-
-System One answers **typed questions** about a **state** (plain text, JSON object/array, or vision)
-and returns **calibrated probabilities**. Nothing is generated and nothing is parsed, so an answer
-cannot be off-schema. The route is wire-compatible with TypeSafe's Jev API: point `typesafe-sdk` at
-`https://gateway.vlm.run/typesafe` and existing clients work unchanged.
-
-| Surface | Base URL | Endpoint |
+| `type` | Shape | Answer |
 | --- | --- | --- |
-| HTTP | `https://gateway.vlm.run/typesafe` | `POST /v1/systemone`, `GET /v1/models` |
-| WebSocket (per-frame video/stream) | `wss://gateway.vlm.run/typesafe` | `WS /ws` (same question set, binary frames in) |
+| `noul` | yes/no; optional `criteria.true` / `criteria.false` | `noul`: P(yes) |
+| `choice` | `criteria`: 2 to 128 labels, each a description or `null` | `choice`, `probabilities`, `confidence` |
+| `score` | `criteria`: ordered list of 2 to 10 levels | `score` (expected level, 0-based, fractional), `legend`, `probabilities`, `confidence` |
+| `box` | `instructions` names the target; needs an image; 8 per request | `box` `{top, bottom, left, right}` (0 to 1), `confidence`. Docs call it a preview. |
+| `text`, `number`, `date`, `list` | a field to extract | `value` (typed or `null`), `confidence`, `p_null` |
 
-Auth is the same bearer token as the rest of the gateway: `Authorization: Bearer <VLMRUN_API_KEY>`.
-Anonymous tier (`Bearer vlmrun` / `VLMRUN_API_KEY=vlmrun`) applies here too, with the same IP quotas
-as [Quickstart](#quickstart). For the official SDK, set `TYPESAFE_API_KEY` to the same key (or pass
-`api_key=` in code). The SDK appends `/v1/systemone` to `TYPESAFE_BASE_URL`; there is no mapping layer.
+Any question can return `{"type": "refusal"}`; the other answers still hold. `confidence` runs from 1
+(all mass on one label) to 0 (uniform).
 
-```bash
-export TYPESAFE_BASE_URL="https://gateway.vlm.run/typesafe"
-export TYPESAFE_API_KEY="$VLMRUN_API_KEY"
-# Required: upstream `jev-latest` is not served here; name a real model id.
-export TYPESAFE_DEFAULT_MODEL="google/diffusiongemma-26b-a4b-it"
-```
+### Inputs and extensions
 
-`VLMRUN_GATEWAY_URL` does **not** cover System One; keep `/typesafe` separate from `/v1/openai`.
+| Field | Notes |
+| --- | --- |
+| `content` | OpenAI-style parts: `image_url` (8 max, 5 MB each, `data:` or `http(s)`), `file` / `document_url` (1 PDF, first 16 pages at 96 DPI), `text`. Images or one PDF, never both (`422`). |
+| `assets` | TypeSafe image format, keyed by a reference written into `state` (the `typesafe-sdk` `Image` type) |
+| `detail` (per part) | `auto` or `high`: 1,072 vision tokens. `low`: 70. One `high` part lifts the whole read. |
+| `reasoning_effort` | `none` (default), `minimal`, `low`, `medium`, `high`. `google/gemma4-26b-a4b-it` only; other engines `422`. |
+| `steps` | Diffusion only, 1 to 8 (default 1) |
+| `samples` | 1 to 32 noise draws; each draw is billed |
+| `document_pages`, `document_max_pages` (1 to 16), `document_dpi` | PDF selection |
 
-### When to use which entry point
-
-| Ask | Use | Why |
-| --- | --- | --- |
-| "Is this scan an invoice?" (probability) | System One `noul` | One calibrated P(yes), never a malformed yes/no string |
-| "Which of these 6 document kinds?" | System One `choice` | Full label distribution + `confidence` |
-| "Gate the expensive OCR pass" | System One | Cheap read before `vlmrun gw chat` |
-| "Transcribe this page to markdown" | `vlmrun gw chat` | Free-form generation |
-| "Extract line items as JSON" with a hub schema | Platform `vlmrun generate` | Typed job + optional grounding, not a single forward read |
-
-Default vision engine: `google/diffusiongemma-26b-a4b-it`. List the current catalog:
-
-```bash
-curl -sS https://gateway.vlm.run/typesafe/v1/models -H "Authorization: Bearer $VLMRUN_API_KEY"
-vlmrun gw s1 --help    # CLI flags; `s1` is shorthand for `systemone`
-```
-
-Other served ids (check `GET /typesafe/v1/models`): `qwen/qwen3.5-0.8b`, `google/gemma-4-26b-a4b-it`,
-`qwen/qwen3.8-27b`. There is no `jev-latest` alias; an unknown `model` is `404`.
-
-### Question types
-
-Up to **16 questions** per request, keyed by caller-chosen ids (ids key `answers`, they are not sent
-to the model). Three `type` values:
-
-| `type` | Question shape | Answer fields |
-| --- | --- | --- |
-| `noul` | Yes/no; optional `criteria.true` / `criteria.false` descriptions | `noul`: P(yes) in [0, 1] |
-| `choice` | `criteria`: map of 2–128 labels → description or `null` | `choice`, `probabilities`, `confidence` |
-| `score` | `criteria`: ordered array of 2–10 level strings | `score` (expected level, 0-indexed), `legend`, `probabilities`, `confidence` |
-
-`confidence` is `1 - H(p)/ln(K)` (1 = peaked, 0 = uniform). Threshold on it for human review or
-fallback to a larger model. Probabilities are model-specific; revalidate thresholds when you change
-`model`.
-
-### Request body (`POST /typesafe/v1/systemone`)
-
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `state` | yes | Text, JSON object, or JSON array the questions refer to |
-| `model` | yes | Served id from `/typesafe/v1/models` |
-| `questions` | yes | Map id → `{type, instructions?, criteria?}` |
-| `content` | no | Media as OpenAI-style parts (see below). Bare string = one `text` part |
-| `reasoning_effort` | no | Generative engines only: `none` (default), `minimal`, `low` (`medium`/`high` → `422` today) |
-| `steps` | no | Diffusion engines: denoise steps 1–8 (default `1`, Jev contract) |
-| `samples` | no | Noise draws to average, 1–32 (each draw is billed) |
-
-**Content parts** (in `content`, or pass files as `vlmrun gw s1` positionals after `-s`):
-
-| Part | Limit | Notes |
-| --- | --- | --- |
-| `image_url` | ≤8 images, 5 MB each | `url` must be a `data:image/...;base64,...` URL (`http(s)` rejected) |
-| `file` or `document_url` | 1 PDF | First 8 pages rasterised at 96 DPI; `file_data` may be `data:...` or `http(s)` |
-| `text` | any | Appended after `state` |
-
-Send **images or one document, never both** (`422`). `detail` per part: `auto`/`high` = 280 vision
-tokens, `low` = 70. Use `low` for coarse routing/classification when fine print does not matter.
-
-Unknown top-level fields → `422` (stricter than upstream Jev, which ignores extras).
-
-### Response
-
-```json
-{
-  "model": "google/diffusiongemma-26b-a4b-it",
-  "answers": {
-    "kind": {
-      "type": "choice",
-      "choice": "invoice",
-      "probabilities": { "invoice": 0.88, "receipt": 0.07, "contract": 0.02, "other": 0.03 },
-      "confidence": 0.64
-    },
-    "has_total": { "type": "noul", "noul": 0.91 }
-  },
-  "usage": {
-    "input_tokens": 486,
-    "output_tokens": 0,
-    "input_tokens_details": { "cached_tokens": 0, "image_tokens": 280, "text_tokens": 206 },
-    "reads": 1,
-    "cost": 0.000129
-  }
-}
-```
-
-`usage.reads`, `usage.cost`, and `usage.input_tokens_details` are gateway extensions; `typesafe-sdk`
-ignores unknown fields and still parses. Responses include `x-typesafe-request-id` (mirrors
-`x-request-id`). Report winning labels, key probabilities, `confidence`, `usage.reads`, and
-`usage.cost`.
+Unknown top-level fields are a `422`. Response: `{"id", "model", "answers": {...}, "usage": {"input_tokens", "output_tokens", "input_tokens_details", "reads", "cost"}}`.
 
 ### CLI: `vlmrun gw s1`
 
+The CLI asks `noul`, `choice` and `score`. For `box` and field types, use HTTP or `typesafe-sdk`.
+Give every `--noul` question text: a bare `--noul ID` fails in the CLI before it sends.
+
 ```bash
-# Vision + batched questions (invoice page)
-vlmrun gw s1 -s "Answer about the attached page." invoice-page.jpg --detail high \
-  -m google/diffusiongemma-26b-a4b-it \
+# Image, three questions, one read
+vlmrun gw s1 -s "Answer about the attached page." receipt.jpg --detail high \
   --choice kind="invoice|receipt|contract|other" \
   --noul has_total="Is a total amount due visible on the page?" \
   --score legibility="unreadable|partly legible|clear"
 
-# PDF routing (first 8 pages)
-vlmrun gw s1 -s "Answer about the document." packet.pdf --detail high \
-  -m google/diffusiongemma-26b-a4b-it \
-  --choice kind="invoice|contract|report|other" \
-  --noul has_signature="Is a signature block visible?"
+# PDF routing; --detail low for coarse classification
+vlmrun gw s1 -s "Answer about the document." packet.pdf --detail low \
+  --choice kind="invoice|contract|report|other" --noul has_signature="Is a signature block visible?"
 
-# Text-only gate (no file)
-vlmrun gw s1 -s "Customer email: please refund order 42 immediately." \
-  -m qwen/qwen3.5-0.8b \
-  --noul refund_requested="Does the state request a refund?" \
-  --choice urgency="low|medium|high" -j
+# Text state, a generative engine with reasoning (paid)
+vlmrun gw s1 "I was charged twice for invoice 44" -m google/gemma4-26b-a4b-it -R low \
+  --choice dept="billing|tax|technical"
 
-# Script gate: exit 1 if condition fails
-vlmrun gw s1 -s "..." scan.jpg -m google/diffusiongemma-26b-a4b-it \
-  --noul is_invoice="Is this an invoice?" --gate 'is_invoice>0.8' \
-  && vlmrun gw chat scan.jpg -m zai-org/glm-ocr
+# Gate a script: exit 0 pass, 1 a gate failed, 2 the request failed
+vlmrun gw s1 -s "Answer about the page." scan.jpg --noul is_invoice="Is this an invoice?" \
+  --gate 'is_invoice>0.8' && vlmrun gw chat scan.jpg -m zai-org/glm-ocr
 ```
 
-`-Q` accepts the wire map or a list form (`@file.json` / stdin). `--body` sends a full JSON body;
-other flags override. Video: sample frames with `--fps` / `--max-frames`, or `--ws` for one WebSocket
-session. `--dry-run` prints the JSON without sending.
+- `-s` takes text, `@file` or `-`. Without `-s`, `.txt`/`.md`/`.json`/`.yaml` positionals become the state.
+- `-Q` takes the wire map or a list form, inline, `@file.json` or `-`. `-B/--body` sends a full body.
+- `-j` prints the response verbatim (with `usage.cost`) on stdout; timings go to stderr.
+- `--dry-run` prints the body without sending. `--repeat N` measures spread across N reads.
+- Video (local file, needs `[video]`): sampled client-side, one read per frame (`--fps`, default 1;
+  `--max-frames`, default 60). `--gate-mode any|all|mean|sustained:N`. `--ws` reads over one socket.
+- The CLI help is wrong on two points: it lists Qwen engines as able to reason (only gemma4 can), and says
+  remote images must be inlined (the route accepts `http(s)` image URLs).
 
 ### Python (`typesafe-sdk`)
 
 ```python
 import base64, os, pathlib
-from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
+from typesafe_sdk import Box, Choice, Image, Noul, Score, TypeSafeClient
 
-client = TypeSafeClient(
-    api_key=os.environ["VLMRUN_API_KEY"],
-    base_url="https://gateway.vlm.run/typesafe",
-)
-page = base64.b64encode(pathlib.Path("invoice-page.jpg").read_bytes()).decode()
-
+client = TypeSafeClient(api_key=os.environ["VLMRUN_API_KEY"], base_url="https://gateway.vlm.run/typesafe", compression=False)
+page = base64.b64encode(pathlib.Path("receipt.jpg").read_bytes()).decode()
 result = client.system_one(
     "Answer about the attached page.",
     {
-        "kind": Choice(
-            instructions="What kind of document is this page from?",
-            criteria={"invoice": None, "receipt": None, "contract": None, "other": None},
-        ),
-        "has_total": Noul(instructions="Is a total amount due visible on the page?"),
-        "legibility": Score(
-            instructions="How legible is the text?",
-            criteria=["unreadable", "partly legible", "clear"],
-        ),
+        "kind": Choice(instructions="What kind of document is this?", criteria={"invoice": None, "receipt": None, "other": None}),
+        "has_total": Noul(instructions="Is a total amount due visible?"),
+        "legibility": Score(instructions="How legible is the text?", criteria=["unreadable", "partly legible", "clear"]),
     },
-    extra_body={
-        "content": [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{page}", "detail": "high"}},
-        ]
-    },
+    extra_body={"content": [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{page}", "detail": "low"}}]},
     model="google/diffusiongemma-26b-a4b-it",
 )
-print(result.choices["kind"].choice, result.nouls["has_total"].noul, result.usage.cost)
+print(result.choices["kind"].choice, result.nouls["has_total"].noul, result.scores["legibility"].score)
+
+box = client.system_one(state={"receipt": Image(pathlib.Path("receipt.jpg"))},
+                        questions={"total": Box(instructions="The TOTAL line")}, model="qwen/qwen3.5-0.8b")
+print(box.boxes["total"].box, box.boxes["total"].confidence)
 ```
 
-`pip install typesafe-sdk`. TypeScript: `@typesafe-ai/sdk` with `baseURL: "https://gateway.vlm.run/typesafe"`.
-
-### Multi-gateway / Jevify-style base URL
-
-Any tool that speaks TypeSafe's Jev HTTP API can use VLM Run as a drop-in host: set base URL to
-`https://gateway.vlm.run/typesafe`, swap the API key to `VLMRUN_API_KEY`, and set an explicit
-`model` (or `TYPESAFE_DEFAULT_MODEL`). Shapes, question types, and answer fields match; only gateway
-extensions (`content`, `reasoning_effort`, `usage.cost`, vision) differ. Do not point `TYPESAFE_BASE_URL`
-at `/v1/openai`; that path is chat completions only.
+- `pip install typesafe-sdk` (included in `vlmrun[typesafe]`). Env vars: `TYPESAFE_BASE_URL`,
+  `TYPESAFE_API_KEY`, `TYPESAFE_DEFAULT_MODEL` (set it; the SDK's `jev-latest` default is a `404` here).
+- `compression=False`: the Gateway does not decode zstd bodies. The SDK sends zstd by default on Python 3.14+.
+- `typesafe-sdk` and `VLMRun().gateway.systemone` drop `usage.cost`. Read cost from raw HTTP or `vlmrun gw s1 -j`.
+- Field questions (`text`, `number`, `date`, `list`): send them with any HTTP client; the SDK does not decode them.
+- Never point `TYPESAFE_BASE_URL` at `/openai`.
 
 ### System One errors
 
-| Status | When | Fix |
+| Status | Body | Fix |
 | --- | --- | --- |
-| `422` | Invalid body, unknown field, images+PDF together, `medium`/`high` reasoning, diffusion + `reasoning_effort` | Read `detail[]`; fix schema; send only images or one PDF |
-| `404` | `model` not on `/typesafe` | `GET /typesafe/v1/models`; avoid `jev-latest` |
-| `429` | Rate limit | Same tiers as gateway; back off or authenticate |
-| `503` | Engine failure | Retry after `retry-after` (often 2 s) |
-| `529` | Overloaded queue | Retry after `retry-after` (often 1 s) |
+| `422` | `{"detail": [{"type", "loc", "msg"}]}` | Fix the field in `loc`: unknown field, images plus PDF, `reasoning_effort` on a non-gemma4 engine |
+| `401` | `authentication_error` | Anonymous on a key or paid engine |
+| `403` | `permission_error` | No card on file for a paid engine |
+| `404` | `not_found_error` | `model` not served here; read `GET /typesafe/v1/models` |
+| `429` | Gateway rate-limit body | Same buckets as the OpenAI routes |
+| `502` | `api_error` | Engine failed; not billed; retry |
+| `503` / `529` | `api_error` / `overloaded_error` | Retry after `retry-after` |
 
-OpenAPI and field-level reference: `https://gateway.vlm.run/openapi.json` (paths under `/typesafe/`),
-docs: `https://docs.vlm.run/gateway/system-one`.
+Docs: [System One](https://docs.vlm.run/gateway/system-one), [TypeSafe models](https://docs.vlm.run/gateway/typesafe-models).
 
-## Request knobs, all of them
+## Decisions
 
-Standard OpenAI fields (`temperature`, `max_tokens`, `top_p`, `frequency_penalty`,
-`presence_penalty`, `stop`, `n`, `logprobs`) and the gateway extensions below all go through
-`-e key=value`. `--method` / `--method-params` are shorthands for the first two rows.
+`POST https://gateway.vlm.run/decisions` asks System One questions of `google/gemini-decision-1`, a
+provider model. Paid accounts only. It is not in `GET /openai/models` and does not answer chat or
+`/typesafe`. No CLI command; use HTTP.
 
-| Field                | Type    | Default         | Applies to                                     |
-| -------------------- | ------- | --------------- | ---------------------------------------------- |
-| `method`             | str     | model's default | Which operation the model runs                 |
-| `method_params`      | object  | none            | That method's arguments                        |
-| `document_dpi`       | int     | `96`            | PDF rasterisation                              |
-| `document_pages`     | list    | all             | Page/range selection                           |
-| `document_max_pages` | int     | `128`           | Page cap                                       |
-| `video_fps`          | float   | uniform         | Video decode rate                              |
-| `video_max_frames`   | int     | `8`             | Frame cap                                      |
-| `video_resolution`   | preset  | source          | Frame resize                                   |
-| `image_resolution`   | preset  | source          | Image resize                                   |
-| `precision`          | int 1–8 | `4`             | Decimal places on normalised coords and scores |
-
-### `response_format`
-
-`method` selects _what_ is computed; `response_format` selects _how_ it is serialised. Any
-combination is valid.
-
-| Value                                                            | Reply                                                                         |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| omitted / `--response-format text`                               | Text blocks (the envelope shown above)                                        |
-| `--json-mode` (= `--response-format json_object`)                | One JSON object: `{"model": …, "method": …, "data": [<entry per input>]}`     |
-| `--response-format '{"type":"json_schema","json_schema":{...}}'` | Schema-constrained generation, chat VLMs and provider-routed models only       |
-
-`json_schema` on an OCR, detection or layout model returns a 400 `capability_violation` on
-`param: "response_format"`. Those replies are an envelope the gateway assembles, so it cannot apply
-a schema. Use `--json-mode` there; every model supports it. Check `capabilities.supports_json_schema`
-in the catalog. Chat VLM output always passes through verbatim, with no JSON envelope.
-
-## Response shapes
-
-| Input               | Text-mode shape                                                              |
-| ------------------- | ---------------------------------------------------------------------------- |
-| One image           | The bare block, no wrapper                                                   |
-| Several images      | Repeated `<image image_hash=… format=… image_width=… image_height=…>` blocks |
-| PDF                 | `<document …>` with one `<page …>` per page                                  |
-| Chat VLM, any input | The model's own text, verbatim                                               |
-
-Region payloads are self-describing, with normalised coordinates. `pp-ocrv6 --method ocr` output:
-
-```json
-{
-  "object": "pp_ocrv6.ocr.regions",
-  "items": [
-    {
-      "bbox_xywh": [0.0522, 0.078, 0.0978, 0.026],
-      "poly_xy": [
-        [0.0522, 0.078],
-        [0.15, 0.078],
-        [0.15, 0.104],
-        [0.0522, 0.104]
-      ],
-      "text": "ACME SUPPLY CO.",
-      "score": 0.9864
-    }
-  ]
-}
+```bash
+curl -sS https://gateway.vlm.run/decisions -H "Authorization: Bearer $VLMRUN_API_KEY" -H "Content-Type: application/json" -d '{
+  "model": "google/gemini-decision-1",
+  "state": "Answer about the attached image.",
+  "content": [{"type": "image_url", "image_url": {"url": "https://storage.googleapis.com/vlm-data-public-prod/hub/examples/document.receipt/playground/2.jpg"}}],
+  "questions": {
+    "kind": {"type": "choice", "instructions": "What kind of document is this?", "criteria": {"invoice": null, "receipt": null, "other": null}},
+    "has_total": {"type": "noul", "instructions": "Is a total amount visible?"}
+  }}'
 ```
 
-Multiply by pixel width/height to get absolute coordinates; `precision` controls the decimals.
-Responses also carry `served_model_id` (the canonical id even when you sent an alias) and
-`backend` (`vllm`, `transformers`, ...). Log them when you compare results across runs.
+- Same response shape as System One (`answers`, `usage.reads` = 1, `usage.cost`).
+- Every question needs `instructions`; a missing one is a `400` that names it.
+- `noul`, `choice`, `score` work. `box` is a `400` from the provider today; field types are a `400`.
+  `reasoning_effort` other than `none`, `steps` and `samples` are a `400`.
+- JSON body only. Media: `content` image parts, PDF pages, or `assets`.
+- Error envelope: `{"error": {"code": 400, "message", "type", "param"}}`. `401` `authentication_error`,
+  `403` `permission_error`, `404` `not_found_error`, `502`/`503` `api_error`.
 
-## Cost and latency
+## MCP server
 
-`usage.cost` is USD on the response (non-streaming), or on the final SSE chunk when streaming.
-Document models bill per page; the rest bill on tokens. A single OCR page or a short chat
-completion costs a fraction of a cent, and a warm model answers in about a second.
+`https://gateway.vlm.run/mcp`: Streamable HTTP, stateless, server name `vlmrun`. Same billing and
+limits as REST.
 
-Cold starts are the one latency trap. A model with no warm replica can take minutes on the first
-request; the same call on a warm replica takes about a second. Pass a generous `--timeout` on a
-first call, and do not read a slow first response as a hang.
+```bash
+claude mcp add --transport http vlmrun https://gateway.vlm.run/mcp --header "Authorization: Bearer $VLMRUN_API_KEY"
+```
 
-## Errors, with the messages
+| Tool | Reads | Default model | Key arguments |
+| --- | --- | --- | --- |
+| `read_document` | PDF or page image to markdown or JSON | `rednote-hilab/dots.mocr` | `url`, `model`, `dpi`, `pages`, `method`, `method_params`, `json_mode` |
+| `read_image` | One image: answer, or region records | `qwen/qwen3.5-0.8b` | `url`, `model`, `prompt`, `method`, `method_params`, `json_mode` |
+| `read_audio` | Speech | `nvidia/parakeet-tdt-0.6b-v3` | `url`, `model`, `language`, `json_mode`, `timestamps` |
+| `read_video` | One clip | `qwen/qwen3.8-27b` (key) | `url`, `model`, `prompt`, `fps`, `max_frames`, `method`, `method_params`, `json_mode` |
+| `list_models`, `get_model_info`, `get_completion` | Model menus, reply schemas, a prior read's cost | | |
+| `create_upload_token` | Single-use token (10 min) for one `POST /openai/files` upload | | none |
 
-| Status / code                                        | Message shape                                                                                       | Fix                                                              |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 400 `capability_violation`, `param: messages`        | `Model 'zai-org/glm-ocr' requires at least one image_url, video_url, or document_url content part.` | Attach a file; text-only needs a chat VLM                        |
-| 400 `capability_violation`, `param: method`          | `Model 'zai-org/glm-ocr' does not support method 'parse_layout'; supported: markdown.`              | Use a listed method, or drop `--method`                          |
-| 400 `capability_violation`, `param: response_format` | schema unsupported                                                                                  | Use `--json-mode`                                                |
-| 404 `model_not_found`                                | Message lists every available id                                                                    | Copy the right full `<org>/<name>`                               |
-| 400 `invalid_media`                                  | Fetch/decode failure on an image or video                                                           | Check the URL, content type and file bytes                       |
-| 400 `invalid_document`                               | Fetch/decode failure on a PDF                                                                       | Same; a 0-page or corrupt PDF fails here                         |
-| 400 (document too long)                              | Names the ranges that cover the PDF                                                                 | Re-send with `document_pages` sections                           |
-| 400 (`-e video_fps` on a routed model)               | Provider exposes no frame sampling                                                                  | Drop the flag, or use a natively served or Gemini model          |
-| 403                                                  | `Invalid API Key`                                                                                   | Key is wrong or shadowed; `unset` env vars, `vlmrun config show` |
-| 422                                                  | Pydantic validation error                                                                           | Malformed request body                                           |
-| 429                                                  | Rate limit; `X-RateLimit-*` headers                                                                 | Back off, or authenticate for the higher tier                    |
-| 500                                                  | Sanitized error                                                                                     | Retry once; then report it                                       |
+- **Auth:** `Bearer $VLMRUN_API_KEY`, or `Bearer vlmrun` for anonymous. No header is a `401` on
+  `/mcp` (unlike REST). OAuth is available where the deployment enables it.
+- **`url`:** `http(s)`, `data:` URI or base64, never a local path. Upload local files first.
+- **Model menus:** OCR models, the self-hosted chat VLMs and the region models. No provider models,
+  no embeddings, no System One.
+- **Region records:** set `json_mode: true`.
 
-Retry a mapping error once, after you re-read the catalog. Do not loop. If the second attempt
-fails, report the exact command and the response.
+Use MCP when the agent has no shell or already has the tools. Use the CLI for local files, loops,
+embeddings, System One and provider models. Docs: [MCP](https://docs.vlm.run/gateway/mcp-server).
+
+## Realtime WebSocket
+
+For a stream of frames with one model and method. The CLI does not drive it, except `vlmrun gw s1 clip.mp4 --ws`.
+
+- **Sockets:** `wss://gateway.vlm.run/v1/ws` returns the model's reply per frame
+  (`vitpose-plus-large`, `hamer`, `sam3.1`, `pp-ocrv6`, `rfdetr-large`, and others that opt in).
+  `wss://gateway.vlm.run/v1/ws/systemone` returns a System One decision per frame (API key only).
+- **Flow:** open with `Authorization: Bearer <key>`, send `session.create` JSON
+  (`{"type": "session.create", "model": "roboflow/rfdetr-large", "method": "detect"}`), wait for
+  `session.created`, send each frame as one binary JPEG/PNG/WebP/GIF message, end with
+  `session.close`, read `session.stats` (counts and `cost`).
+- **Browser:** mint a client secret on your server with `POST /v1/ws/client_secrets` (API key), then
+  offer subprotocols `["vlmrun.realtime", "vlmrun.bearer.<secret>"]`.
+- **Anonymous `vlmrun` on `/v1/ws`:** 1 session per IP, 120 s open time per model per day.
+- **Bounds:** a session lives 10 min, closes after 30 s idle, and caps spend at $5.00. Frames
+  over 2 MiB or over the model's `max_fps` are dropped.
+
+Docs: [Realtime](https://docs.vlm.run/gateway/realtime).
+
+## Cost and limits
+
+- **`usage.cost`:** USD per call, on the response; on the final SSE chunk when streaming. Also on
+  embeddings, transcription (`json`, `verbose_json`), System One, Decisions and MCP reads.
+- **Before a call:** `pricing` on `GET /openai/models/{id}` gives per-model rates (per 1M tokens,
+  images, video seconds or audio seconds).
+- **Minimum per call** ([Pricing](https://docs.vlm.run/gateway/pricing)):
+
+| Models | Minimum per call |
+| --- | --- |
+| OCR, layout, detection, captioning, segmentation, pose, transcription | $0.001 |
+| `google/embeddinggemma-2` | $0.000005 |
+| Chat VLMs, provider models, `qwen/qwen3-vl-embedding-2b`, System One, Decisions | none |
+
+- **Deadlines:** 30 s to first token (60 s on `qwen/qwen3.8-27b`, 120 s on provider models) and 600 s
+  total. Past either is a `504`.
+- **Cold model:** a model with no warm replica returns `503` `model_unavailable` with `Retry-After`.
+  Back off and retry.
+- **Rate limits:** see [Install and auth](#install-and-auth). A `429` carries `Retry-After`; wait that long once.
+
+## Errors
+
+OpenAI routes nest the error in `detail`:
+`{"detail": {"error": {"message", "type", "code", "param"}}}`. Rate limits and a Gateway fault use a
+top-level `error`. Every response has `x-request-id`; send it to support@vlm.run with the body.
+
+| Status | `type` / `code` | Example message | Fix |
+| --- | --- | --- | --- |
+| 400 | `invalid_request` | `messages: Field required` | Fix the field named in `param` |
+| 400 | `capability_violation`, `param: messages` | `Model 'zai-org/glm-ocr' requires at least one image_url, video_url, or document_url content part.` | Attach a file; text-only needs a chat VLM |
+| 400 | `capability_violation`, `param: method` | `Model 'zai-org/glm-ocr' does not support method 'parse_layout'; supported: markdown.` | Use a listed method |
+| 400 | `capability_violation`, `param: messages.content.image_url` | `Model 'paddleocr/pp-ocrv6' accepts at most 1 image_url part(s); got 2.` | One image per call, or a chat VLM |
+| 400 | `capability_violation`, `param: response_format` | `... does not support response_format {'type': 'json_schema'} ...` | Use `--json-mode` |
+| 400 | `capability_violation`, `param: <field>` | `Model '...' does not accept 'temperature'.` | Drop the field |
+| 400 | `invalid_document` | `This PDF has 5 pages and one request reads at most 2. ... [0, 2], [2, 4], [4, 5]` | Send the named `document_pages` ranges |
+| 400 | `invalid_media` | Fetch or decode failure | Check the URL, type and bytes |
+| 400 | `upstream_error` | `... exposes no frame-sampling control, so 'video_fps' cannot be honoured.` | Drop `video_fps`, or re-encode the clip |
+| 401 | `"Invalid API Key"` | | Wrong key; check for stale exports |
+| 401 / 403 | `model_not_entitled` | `requires an API key` / `requires a credit card on file` | Use a key, or a paid org |
+| 402 | plain detail | `Your credits are exhausted.` | Top up billing |
+| 404 | `model_not_found` | Lists every served id | Copy the right id |
+| 429 | `rate_limit_exceeded`, `usage_limit_exceeded` | | Wait `Retry-After`, or use a key |
+| 502 | `model_error`, `document_inference_failed` | | Not billed; retry with backoff |
+| 503 | `model_unavailable`, `model_busy` | | Retry after `Retry-After` |
+| 504 | `ttft_timeout`, `inference_timeout` | | Retry; smaller input; `stream=true` |
+
+Retry once after you re-read the catalog. Do not loop. If the second attempt fails, report the exact
+command and response. Full table: [Error Codes](https://docs.vlm.run/gateway/error-codes).
 
 ## How to run a request well
 
-1. **Read the ask**: inputs (expand `~`; `http(s)` URLs are fine) and intent. Ask one short
-   question only if the intent is ambiguous. A missing model is not ambiguity.
-2. **Pick from the catalog**, not from memory: `vlmrun gw models`, then
-   `vlmrun gw models <model>` for its methods, params and example commands. Honor any model or
-   method the user named.
-3. **Show the command** you are about to run, on one line, then run it. Default to the readable
-   panel; add `--json` only for scripting or when the user wants raw output.
-4. **Let the CLI encode.** It sniffs magic bytes and picks `document_url` / `image_url` /
-   `video_url` itself, so a `.jpg` that is really WebP still works.
-5. **Report** the extracted text, markdown, answer, transcript, or vector count and dimension,
-   plus `usage.cost` when it is relevant, summed across a batch. If you chose the model or method
-   yourself, say which and why in one line.
+1. **Read the ask:** inputs (expand `~`; `http(s)` URLs are fine) and intent. Ask one short question
+   only if the intent is ambiguous. A missing model is not ambiguity.
+2. **Pick from the catalog:** `vlmrun gw models`, then `vlmrun gw models <model>`. Honour any model or
+   method the user named. Check its access tier against the key you have.
+3. **Show the command** on one line, then run it. Add `-j` only for scripting.
+4. **Let the CLI encode** local files. For MCP or raw HTTP, upload them with [Files](#files).
+5. **Report** the text, answer, transcript, labels with probabilities, or vector count and dimension,
+   plus `usage.cost` summed across a batch. If you chose the model or method, say which and why in one line.
 
 ## Worked examples
 
-| Ask                                     | Command                                                                              |
-| --------------------------------------- | ------------------------------------------------------------------------------------ |
-| "parse this contract to markdown"       | `vlmrun gw chat contract.pdf -m zai-org/glm-ocr`                                     |
-| "extract the text from this receipt"    | `vlmrun gw chat receipt.png -m paddleocr/pp-ocrv6 --method ocr`                      |
-| "just the text, no boxes"               | `vlmrun gw chat receipt.png -m paddleocr/pp-ocrv6 --method text`                     |
-| "where is the text on this form?"       | `vlmrun gw chat form.jpg -m paddleocr/pp-ocrv6 --method detect`                      |
-| "get the layout of this drawing"        | `vlmrun gw chat sheet.pdf -m rednote-hilab/dots.mocr --method parse_layout`          |
-| "pull the tables out of this statement" | `vlmrun gw chat statement.pdf -m paddlepaddle/paddleocr-vl-1.6 --method table`       |
-| "read pages 10–20 of this book"         | `vlmrun gw chat book.pdf -m zai-org/glm-ocr -e document_pages='[[10,20]]'`           |
-| "read this fine print"                  | `vlmrun gw chat scan.pdf -m zai-org/glm-ocr -e document_dpi=300`                     |
-| "caption this photo"                    | `vlmrun gw chat photo.jpg -m microsoft/florence-2-base-ft --method detailed_caption` |
-| "what's in this image?"                 | `vlmrun gw chat street.jpg -p "What's in this image?" -m google/gemini-3.7-flash`    |
-| "summarise this video"                  | `vlmrun gw chat clip.mp4 -p "Summarise this clip" -m qwen/qwen3.8-27b`               |
-| "where are the people looking?" (pose)  | `vlmrun gw chat crowd.jpg -m usyd-community/vitpose-plus-large`                      |
-| "embed these product photos"            | `vlmrun gw embed shots/*.jpg -m qwen/qwen3-vl-embedding-2b --json`                   |
-| "subtitle this recording"               | `vlmrun gw transcribe talk.mp4 -m nvidia/parakeet-tdt-0.6b-v3 -f srt`                |
-| "is this scan an invoice?" (probability) | `vlmrun gw s1 -s "Answer about the page." scan.jpg -m google/diffusiongemma-26b-a4b-it --noul is_invoice="Is this an invoice?"` |
-| "classify this PDF before OCR"          | `vlmrun gw s1 -s "Answer about the document." doc.pdf --choice kind="invoice\|contract\|other" -m google/diffusiongemma-26b-a4b-it` |
-| "is the gateway up?"                    | `vlmrun gw health`                                                                   |
+| Ask | Command |
+| --- | --- |
+| "parse this contract to markdown" | `vlmrun gw chat contract.pdf -m zai-org/glm-ocr` |
+| "OCR a long PDF at the lowest cost" | `vlmrun gw chat book.pdf -m vlm-run/ocr:auto` (over 128 pages: `-e document_pages='[[0,128]]'`, then the next range) |
+| "extract the text and boxes from this receipt" | `vlmrun gw chat receipt.png -m paddleocr/pp-ocrv6 --method ocr` |
+| "just the text, no boxes" | `vlmrun gw chat receipt.png -m paddleocr/pp-ocrv6 --method text` |
+| "get the layout of this page" | `vlmrun gw chat page.pdf -m nvidia/nemotron-3.5-parse --method layout --json-mode -j` |
+| "pull the tables out" | `vlmrun gw chat statement.pdf -m paddlepaddle/paddleocr-vl-1.6 --method table` |
+| "read pages 10 to 20" | `vlmrun gw chat book.pdf -m zai-org/glm-ocr -e document_pages='[[10,20]]'` |
+| "read this fine print" | `vlmrun gw chat scan.pdf -m zai-org/glm-ocr -e document_dpi=300` |
+| "caption this photo" | `vlmrun gw chat photo.jpg -m microsoft/florence-2-base-ft --method detailed_caption` |
+| "what's in this image?" | `vlmrun gw chat photo.jpg -m qwen/qwen3.5-0.8b -p "What's in this image?"` |
+| "summarise this video" | `vlmrun gw chat clip.mp4 -m qwen/qwen3.8-27b -p "Summarise this clip"` |
+| "find the people" | `vlmrun gw chat street.jpg -m roboflow/rfdetr-large --json-mode -j` |
+| "mask every hat" | `vlmrun gw chat photo.jpg -m facebook/sam3.1 -p "hat"` |
+| "body pose" / "hand pose" | `vlmrun gw chat crowd.jpg -m usyd-community/vitpose-plus-large` / `-m geopavlakos/hamer` |
+| "embed these photos" | `vlmrun gw embed shots/*.jpg -m qwen/qwen3-vl-embedding-2b --json` |
+| "subtitle this recording" | `vlmrun gw transcribe talk.mp4 -m nvidia/parakeet-tdt-0.6b-v3 -f srt` |
+| "is this scan an invoice?" | `vlmrun gw s1 -s "Answer about the page." scan.jpg --noul is_invoice="Is this an invoice?"` |
+| "classify this PDF before OCR" | `vlmrun gw s1 -s "Answer about the document." doc.pdf --detail low --choice kind="invoice\|contract\|other"` |
+| "where is the total?" | `typesafe-sdk` `Box(...)` or HTTP `{"type": "box"}` (no CLI flag) |
+| "is the gateway up?" | `vlmrun gw health`, or `curl -sS https://gateway.vlm.run/health` |
 
 ## Batches
 
-Shell loop, one output per input, cost totalled:
-
 ```bash
 for f in scans/*.pdf; do
-  vlmrun gw chat "$f" -m zai-org/glm-ocr --json --timeout 600 \
-    > "out/$(basename "${f%.pdf}").json"
+  vlmrun gw chat "$f" -m zai-org/glm-ocr -ns -j --timeout 700 > "out/$(basename "${f%.pdf}").json"
 done
 jq -s 'map(.usage.cost // 0) | add' out/*.json
 ```
 
-For large batches, bound concurrency (for example `xargs -P 4`) to stay under the rate limit, and
-pass a generous `--timeout` for the first call to a cold model.
+Bound concurrency (for example `xargs -P 4`) to stay under the rate limit. Anonymous callers get 30
+calls per hour, so batch with a key.
 
-## Platform API: predictions, agents and executions
+## Platform API: predictions and agent executions
 
-The gateway returns what one model says. The platform API (`https://api.vlm.run/v1`, `VLMRUN_BASE_URL`) returns
-typed JSON: hub domains with fixed schemas, your own Pydantic schema, or an agent that runs as a job.
-Same `VLMRUN_API_KEY`. Everything here goes through `VLMRun()`, never through `vlmrun gw`.
+The platform API (`https://api.vlm.run/v1`, `VLMRUN_BASE_URL`) returns typed JSON from a hub domain,
+your own schema, or an agent that runs as a job. Same `VLMRUN_API_KEY`. It goes through `VLMRun()`,
+never through `vlmrun gw`.
 
 ```python
+from pydantic import BaseModel
 from vlmrun.client import VLMRun
 from vlmrun.client.types import AgentExecutionConfig, GenerationConfig
-from pydantic import BaseModel
 
-client = VLMRun()                                  # validates the key against /health on construction
-```
+client = VLMRun()   # validates the key on construction
 
-### Predictions
-
-| Call | Input | Notes |
-| --- | --- | --- |
-| `client.image.generate(images=[...] \| urls=[...], domain="document.invoice")` | PIL images or URLs | Synchronous by default. `batch=True` returns a job. |
-| `client.document.generate(file=path \| file_id, url=..., domain=..., batch=True)` | PDF | Uploads the file (cached by hash) then submits. Same for `client.audio` and `client.video`. |
-| `client.document.execute(name="my-agent", version="latest", ...)` | Same | Run a named agent instead of a domain |
-| `client.predictions.get(id)` / `.wait(id, timeout=600, sleep=5)` / `.list()` | Job id | `wait` raises `TimeoutError` |
-| `client.hub.list_domains()` / `client.hub.info()` | none | Every domain with its schema version |
-
-```python
 class Invoice(BaseModel):
     vendor: str
     total: float
 
-r = client.document.generate(
-    file="invoice.pdf", domain="document.invoice", batch=True,
-    config=GenerationConfig(response_model=Invoice, confidence=True, grounding=False),
-)
-r = client.predictions.wait(r.id)
-Invoice(**r.response)                              # wait returns a dict; a synchronous call with autocast=True casts it for you
+r = client.document.generate(file="invoice.pdf", domain="document.invoice", batch=True,
+                             config=GenerationConfig(response_model=Invoice, confidence=True))
+r = client.predictions.wait(r.id, timeout=600, sleep=5)   # raises TimeoutError
+Invoice(**r.response)
+
+e = client.agent.execute(name="my-agent:v1", inputs={"document": "https://example.com/invoice.pdf"},
+                         config=AgentExecutionConfig(prompt="Extract line items"), toolsets=["core", "document"])
+e = client.executions.wait(e.id, timeout=600, sleep=5)
 ```
 
-`GenerationConfig` fields: `prompt`, `response_model` or `json_schema`, `temperature` (default 0), `max_tokens`, `detail` (`auto|lo|hi`), `confidence`, `grounding`, `video_segment_duration`. `PredictionResponse` carries `id`, `status` (`enqueued|pending|running|completed|failed|paused`), `response`, `usage`, `created_at`, `completed_at`.
-
-CLI equivalent: `vlmrun generate -i invoice.pdf -d document.invoice [--schema s.json] [-p "..."] [--timeout S] [--format json]`, plus `vlmrun hub list`, `vlmrun hub schema <domain>`, `vlmrun predictions list|get <id>`, `vlmrun files list|upload|get|delete`.
-
-### Agents and executions
-
-Agents run as batch jobs on `vlmrun-orion-1` (`:lite|fast|auto|pro`). `batch=False` raises `NotImplementedError`.
-
-```python
-r = client.agent.execute(
-    name="my-agent:v1",                              # or omit name and pass config.prompt
-    inputs={"document": "https://example.com/invoice.pdf"},
-    config=AgentExecutionConfig(prompt="Extract line items", json_schema={...}),
-    toolsets=["core", "document"],                  # core, image, image-gen, world-gen, viz, document, video, web
-    callback_url=None,
-)
-r = client.executions.wait(r.id, timeout=600, sleep=5)
-r.status, r.response, r.usage
-client.executions.list(skip=0, limit=10); client.executions.get(id)
-client.agent.list(); client.agent.get(name=... | id=... | prompt=...); client.agent.create(...)
-```
-
-`client.agent.completions` is an OpenAI-compatible chat interface to the same agent (`vlmrun chat` uses it). Do not confuse it with `client.gateway.completions`.
-
-CLI equivalent: `vlmrun execute -n my-agent:v1 -p "..." -i file [--schema s.json] [-t core -t document] [-m vlmrun-orion-1:auto] [--timeout S] [--callback-url U] [-f json]` (waits by default), `vlmrun executions list|get <id> [--wait --timeout S --poll-interval S]`.
-
-### Errors
-
-All SDK errors derive from `vlmrun.client.exceptions.VLMRunError`, each with a `suggestion`. Catch the specific one:
-
-| Exception | Cause |
+| Call | Notes |
 | --- | --- |
-| `AuthenticationError` (401/403) | Key missing or wrong. Follow https://vlm.run/auth.md when `VLMRUN_API_KEY` is missing or rejected. `VLMRun()` raises this at construction. |
-| `ValidationError` (400/422) | Bad domain, schema or input |
-| `ResourceNotFoundError` (404) | Unknown prediction, execution, file or agent |
-| `RateLimitError` (429) | Back off |
-| `RequestTimeoutError`, `NetworkError`, `ServerError` (5xx) | Retry once, then report |
-| `ConfigurationError`, `DependencyError`, `InputError` | Client side: missing key or `base_url`, missing optional package (`pip install "vlmrun[doc]"`, `[video]`, `[all]`), bad local input |
+| `client.image.generate(domain=, images=[...] \| urls=[...], batch=False)` | Synchronous by default |
+| `client.document` / `.audio` / `.video` `.generate(file= \| url=, domain=, batch=False, config=)` | Uploads the file, then submits. `autocast=True` casts a synchronous result. |
+| `client.document.execute(name=, version="latest", ...)` | A named agent instead of a domain |
+| `client.predictions.get(id)` / `.wait(id)` / `.list()` | |
+| `client.agent.execute(name=, inputs=, config=, model="vlmrun-orion-1:auto", toolsets=)` | Batch only; `batch=False` raises `NotImplementedError`. Toolsets: `core`, `image`, `image-gen`, `world-gen`, `viz`, `document`, `video`, `web`. |
+| `client.executions.get(id)` / `.wait(id)` / `.list(skip=0, limit=10)` | |
+| `client.hub.list_domains()` | Domains and schema versions |
 
-Gateway calls through `client.gateway` or the OpenAI SDK raise `openai.APIStatusError` subclasses instead, with the gateway's error body in `.body`.
+- `GenerationConfig`: `prompt`, `response_model` or `json_schema`, `temperature` (0), `max_tokens`,
+  `detail` (`auto`, `lo`, `hi`), `confidence`, `grounding`, `page_indices`, `skills`, video segment fields.
+- Status: `enqueued`, `pending`, `running`, `completed`, `failed`, `paused`.
+- `client.agent.completions` is the OpenAI-compatible agent chat (`vlmrun chat` uses it). It is not `client.gateway.completions`.
+- CLI: `vlmrun generate -i <file> -d <domain> [--schema s.json] [-p ...] [-k <skill dir>] [--skill-id name:ver] [--timeout 300] [-f json]`,
+  `vlmrun execute -n my-agent:v1 -i <file> [-p ...] [-t core -t document] [-m vlmrun-orion-1:auto] [--callback-url U] [-f json]` (waits by default),
+  `vlmrun executions list|get <id> [--wait]`, `vlmrun predictions list|get`, `vlmrun hub list|schema <domain>`, `vlmrun files list|upload|get|delete`.
+- Errors derive from `vlmrun.client.exceptions.VLMRunError`, each with a `suggestion`:
+  `AuthenticationError` (401/403), `ValidationError` (400/422), `ResourceNotFoundError` (404),
+  `RateLimitError` (429), `RequestTimeoutError`, `NetworkError`, `ServerError` (5xx),
+  `ConfigurationError`, `DependencyError` (`pip install "vlmrun[doc]"`, `[video]`, `[all]`), `InputError`.
 
 ## Re-checking this document
 
-Flags come from `vlmrun <cmd> --help`. The catalog, capabilities, response envelopes and error
-messages come from the live gateway. System One shapes come from `https://gateway.vlm.run/openapi.json`
-(`/typesafe/*`) and `GET /typesafe/v1/models`. Client signatures come from `vlmrun/client/*.py` in the
-SDK repo. To re-check:
+Flags come from `vlmrun <cmd> --help`. Catalog, envelopes and errors come from the live Gateway.
+Depth lives at `https://docs.vlm.run/gateway/<page>`.
 
 ```bash
-VLMRUN_API_KEY=vlmrun uvx --from vlmrun vlmrun gw models --json
+curl -sS https://gateway.vlm.run/health
+curl -sS https://gateway.vlm.run/openai/models -H "Authorization: Bearer vlmrun" | jq '.data | length'
 curl -sS https://gateway.vlm.run/typesafe/v1/models -H "Authorization: Bearer vlmrun"
-uvx --from vlmrun vlmrun gw s1 --help
-uvx --from vlmrun vlmrun --help
+vlmrun gw chat --help; vlmrun gw s1 --help
 ```
